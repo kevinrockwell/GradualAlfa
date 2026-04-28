@@ -3,6 +3,7 @@
 pub enum AlfaType {
     Num,
     Bool,
+    Unit,
     Arrow(Box<AlfaType>, Box<AlfaType>),
     Product(Box<AlfaType>, Box<AlfaType>),
     Sum(Box<AlfaType>, Box<AlfaType>),
@@ -23,6 +24,9 @@ pub enum Prefix {
     Neg,
 }
 
+// TODO: typ should probably be refactored out to be with the variable decl
+// instead of the ID? And then type checking will propagate, along with
+// (eventually) transforming AST to include casts/RTTI in some way.
 #[derive(Debug)]
 pub struct Id {
     pub id: String,

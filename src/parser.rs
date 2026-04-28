@@ -13,10 +13,26 @@ type AlfaTypeResult = Result<AlfaType, String>;
 struct AlfaParser;
 
 // TODO: Types
-fn parse_alfatype(pair: Option<Pair<Rule>>, _pratt: &PrattParser<Rule>) -> Option<AlfaType> {
-    // We can use the same PrattParser for composite types
-    println!("DEBUG: Parsing type: {:?}", pair?);
-    None
+fn parse_alfatype(pair: Option<Pair<Rule>>, pratt: &PrattParser<Rule>) -> Option<AlfaType> {
+    println!("DEBUG: Parsing type: {:?}", pair.as_ref()?);
+    use AlfaType::*;
+    pratt
+        .map_primary(|primary| match primary.as_rule() {
+            Rule::numType => Some(Num),
+            Rule::boolType => Some(Bool),
+            Rule::unitType => Some(Unit),
+            Rule::alfatype => parse_alfatype(Some(primary), pratt),
+            // TODO this entire thing should be refactored into a Result
+            _ => panic!("Unexpected base type: {}", primary.as_str()),
+        })
+        // TODO: is there a better name than "op" for these???
+        .map_infix(|lhs, op, rhs| match op.as_rule() {
+            Rule::arrow => Some(Arrow(Box::new(lhs?), Box::new(rhs?))),
+            Rule::product => Some(Product(Box::new(lhs?), Box::new(rhs?))),
+            Rule::sum => Some(Sum(Box::new(lhs?), Box::new(rhs?))),
+            _ => unreachable!(),
+        })
+        .parse(pair?.into_inner())
 }
 
 fn parse_var_dec(pair: Pair<Rule>, pratt: &PrattParser<Rule>) -> Id {
@@ -29,7 +45,7 @@ fn parse_var_dec(pair: Pair<Rule>, pratt: &PrattParser<Rule>) -> Id {
     } else if Rule::id == pair.as_rule() {
         Id {
             id: pair.to_string(),
-            typ: None
+            typ: None,
         }
     } else {
         panic!("Trying to parse variable out of {:?}", pair)
@@ -37,7 +53,7 @@ fn parse_var_dec(pair: Pair<Rule>, pratt: &PrattParser<Rule>) -> Id {
 }
 
 fn parse_arith(pairs: Pairs<Rule>, pratt: &PrattParser<Rule>) -> ParseResult {
-    println!("DEBUG arith pairs: {:?}", pairs);
+    // println!("DEBUG arith pairs: {:?}", pairs);
     pratt
         .map_primary(|primary| match primary.as_rule() {
             Rule::numlit => Ok(Expr::Num(primary.as_str().parse().unwrap())),
@@ -89,7 +105,7 @@ fn parse_arith(pairs: Pairs<Rule>, pratt: &PrattParser<Rule>) -> ParseResult {
 }
 
 fn parse_expr(current_rule: Pair<Rule>, pratt: &PrattParser<Rule>) -> ParseResult {
-    println!("DEBUG: parse_expr parsing {:?}", current_rule);
+    // println!("DEBUG: parse_expr parsing {:?}", current_rule);
     match current_rule.as_rule() {
         Rule::fun => {
             let mut inner = current_rule.into_inner();
@@ -179,6 +195,11 @@ fn parse_expr(current_rule: Pair<Rule>, pratt: &PrattParser<Rule>) -> ParseResul
 pub fn parse_alfa_program(prog: &str) -> ParseResult {
     // Set up the Pratt Parser
     let pratt = PrattParser::new()
+        // "Operators" on types
+        .op(Op::infix(Rule::arrow, Assoc::Left))
+        .op(Op::infix(Rule::sum, Assoc::Left))
+        .op(Op::infix(Rule::product, Assoc::Left))
+        // Arithmetic operators
         .op(Op::infix(Rule::greater, Assoc::Left)
             | Op::infix(Rule::less, Assoc::Left)
             | Op::infix(Rule::eq, Assoc::Left))
@@ -553,5 +574,135 @@ mod tests {
                 ))
             )
         )
+    }
+
+    #[test]
+    fn test_type_parsing() {
+        // Base types
+        assert_eq!(
+            parse_alfa_program("fun (x: Num) -> 1").unwrap(),
+            Fun(
+                Id {
+                    id: "x".to_string(),
+                    typ: Some(AlfaType::Num)
+                },
+                Box::new(Num(1))
+            )
+        );
+        assert_eq!(
+            parse_alfa_program("fun (x: Bool) -> 1").unwrap(),
+            Fun(
+                Id {
+                    id: "x".to_string(),
+                    typ: Some(AlfaType::Bool)
+                },
+                Box::new(Num(1))
+            )
+        );
+        assert_eq!(
+            parse_alfa_program("fun (x: Unit) -> 1").unwrap(),
+            Fun(
+                Id {
+                    id: "x".to_string(),
+                    typ: Some(AlfaType::Unit)
+                },
+                Box::new(Num(1))
+            )
+        );
+        // Sum
+        assert_eq!(
+            parse_alfa_program("fun (x: Num + Num) -> 1").unwrap(),
+            Fun(
+                Id {
+                    id: "x".to_string(),
+                    typ: Some(AlfaType::Sum(
+                        Box::new(AlfaType::Num),
+                        Box::new(AlfaType::Num)
+                    ))
+                },
+                Box::new(Num(1))
+            )
+        );
+        // Product
+        assert_eq!(
+            parse_alfa_program("fun (x: Num * Num) -> 1").unwrap(),
+            Fun(
+                Id {
+                    id: "x".to_string(),
+                    typ: Some(AlfaType::Product(
+                        Box::new(AlfaType::Num),
+                        Box::new(AlfaType::Num)
+                    ))
+                },
+                Box::new(Num(1))
+            )
+        );
+        // Arrow
+        assert_eq!(
+            parse_alfa_program("fun (x: Num -> Num) -> 1").unwrap(),
+            Fun(
+                Id {
+                    id: "x".to_string(),
+                    typ: Some(AlfaType::Arrow(
+                        Box::new(AlfaType::Num),
+                        Box::new(AlfaType::Num)
+                    ))
+                },
+                Box::new(Num(1))
+            )
+        );
+        // Precedence between +, *, ->
+        assert_eq!(
+            parse_alfa_program("fun (x: Num + Num -> Num * Num) -> 1").unwrap(),
+            Fun(
+                Id {
+                    id: "x".to_string(),
+                    typ: Some(AlfaType::Arrow(
+                        Box::new(AlfaType::Sum(
+                            Box::new(AlfaType::Num),
+                            Box::new(AlfaType::Num)
+                        )),
+                        Box::new(AlfaType::Product(
+                            Box::new(AlfaType::Num),
+                            Box::new(AlfaType::Num)
+                        )),
+                    ))
+                },
+                Box::new(Num(1))
+            )
+        );
+        assert_eq!(
+            parse_alfa_program("fun (x: Num + Num * Num) -> 1").unwrap(),
+            Fun(
+                Id {
+                    id: "x".to_string(),
+                    typ: Some(AlfaType::Sum(
+                        Box::new(AlfaType::Num),
+                        Box::new(AlfaType::Product(
+                            Box::new(AlfaType::Num),
+                            Box::new(AlfaType::Num)
+                        )),
+                    ))
+                },
+                Box::new(Num(1))
+            )
+        );
+        // Parentheses work as expected
+        assert_eq!(
+            parse_alfa_program("fun (x: (Num -> Num) * Num) -> 1").unwrap(),
+            Fun(
+                Id {
+                    id: "x".to_string(),
+                    typ: Some(AlfaType::Product(
+                        Box::new(AlfaType::Arrow(
+                            Box::new(AlfaType::Num),
+                            Box::new(AlfaType::Num)
+                        )),
+                        Box::new(AlfaType::Num)
+                        )),
+                },
+                Box::new(Num(1))
+            )
+        );
     }
 }

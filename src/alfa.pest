@@ -33,17 +33,18 @@ snd     =  { ".snd" }
 
 numlit  = @{ '1'..'9' ~ num* }
 boollit = @{ "true" | "false" }
-vardec  =  { id | ("(" ~ id ~ ":" ~ type ~ ")") }
+vardec  =  { id | ("(" ~ id ~ ":" ~ alfatype ~ ")") }
 
-type     = _{ arrow | product | sum | typelit | "(" ~ type ~ ")" }
+alfatype =  { typeterm ~ (type_op ~ typeterm)* }
+type_op  = _{ arrow | product | sum }
 typelit  = _{ numType | boolType | unitType }
 numType  =  { "Num" }
 boolType =  { "Bool" }
 unitType =  { "Unit" }
-lefttype = _{ (typelit | ("(" ~ type ~ ")")) }
-arrow    =  { lefttype ~ "->" ~ type }
-product  =  { lefttype ~ "*" ~ type }
-sum      =  { lefttype ~ "+" ~ type }
+typeterm = _{ (typelit | ("(" ~ alfatype ~ ")")) }
+arrow    =  { "->" }
+product  =  { "*" }
+sum      =  { "+" }
 
 alfa = _{ 'a'..'z' | 'A'..'Z' }
 num  = _{ '0'..'9' }
