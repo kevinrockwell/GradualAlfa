@@ -1,0 +1,46 @@
+alfa_prog = _{ SOI ~ expr ~ EOI }
+
+expr       =  { fun | ifexpr | letexpr | ap | arith | pair | term | "(" ~ expr ~ ")" }
+term       = _{ numlit | boollit | unit | id }
+arith      =  { arith_term ~ (binop ~ arith_term)* }
+arith_term = _{ prefix? ~ left_expr }
+left_expr  = _{ term | "(" ~ expr ~ ")" }
+
+pair    =  { "(" ~ expr ~ "," ~ expr ~ ")" }
+fun     =  { "fun" ~ vardec ~ "->" ~ expr }
+ifexpr  =  { "if" ~ expr ~ "then" ~ expr ~ "else" ~ expr }
+letexpr =  { "let" ~ vardec ~ "be" ~ expr ~ "in" ~ expr }
+ap      =  { left_expr ~ "(" ~ expr ~ ")" }
+unexpr  = _{ prefix ~ expr }
+
+// Precedence implemented in code not in grammar
+binop   = _{ times | plus | minus | greater | less | eq }
+times   =  { "*" }
+plus    =  { "+" }
+minus   =  { "-" }
+greater =  { ">" }
+less    =  { "<" }
+eq      =  { "=?" }
+prefix  = _{ neg }
+neg     =  { "-" }
+
+numlit  = @{ '1'..'9' ~ num* }
+boollit = @{ "true" | "false" }
+vardec  =  { id | ("(" ~ id ~ ":" ~ type ~ ")") }
+
+type     = _{ arrow | product | sum | typelit | "(" ~ type ~ ")" }
+typelit  = _{ numType | boolType | unitType }
+numType  =  { "Num" }
+boolType =  { "Bool" }
+unitType =  { "Unit" }
+lefttype = _{ (typelit | ("(" ~ type ~ ")")) }
+arrow    =  { lefttype ~ "->" ~ type }
+product  =  { lefttype ~ "*" ~ type }
+sum      =  { lefttype ~ "+" ~ type }
+
+alfa = _{ 'a'..'z' | 'A'..'Z' }
+num  = _{ '0'..'9' }
+id   = @{ alfa ~ (alfa | num)* }
+unit = @{ "()" }
+
+WHITESPACE = _{ " " | "\n" }
