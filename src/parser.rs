@@ -3,59 +3,16 @@ use pest::iterators::{Pair, Pairs};
 use pest::pratt_parser::{Assoc, Op, PrattParser};
 use pest_derive::Parser;
 
-#[derive(Parser, Debug)]
-#[grammar = "alfa.pest"]
-struct AlfaParser;
+use crate::ast::*;
 
 pub type ParseResult = Result<Expr, String>;
 type AlfaTypeResult = Result<AlfaType, String>;
 
-#[derive(Debug)]
-pub enum AlfaType {
-    Num,
-    Bool,
-    Arrow(Box<AlfaType>, Box<AlfaType>),
-    Product(Box<AlfaType>, Box<AlfaType>),
-    Sum(Box<AlfaType>, Box<AlfaType>),
-}
+#[derive(Parser, Debug)]
+#[grammar = "alfa.pest"]
+struct AlfaParser;
 
-#[derive(Debug)]
-pub enum BinOp {
-    Plus,
-    Minus,
-    Times,
-    LessThan,
-    GreaterThan,
-    EqualTo,
-}
-
-#[derive(Debug)]
-pub enum UnOp {
-    Neg,
-}
-
-#[derive(Debug)]
-pub struct Id {
-    id: String,
-    typ: Option<AlfaType>,
-}
-
-#[derive(Debug)]
-pub enum Expr {
-    Num(i32),
-    Bool(bool),
-    Unit,
-    Var(Id),
-    Fun(Id, Box<Expr>),
-    If(Box<Expr>, Box<Expr>, Box<Expr>),
-    Let(Id, Box<Expr>),
-    Ap(Box<Expr>, Box<Expr>),
-    BinaryExpr(Box<Expr>, BinOp, Box<Expr>),
-    UnaryExpr(UnOp, Box<Expr>),
-    Pair(Box<Expr>, Box<Expr>),
-}
-
-// TODO: this
+// TODO: Types
 fn parse_alfatype(pair: Option<Pair<Rule>>, _pratt: &PrattParser<Rule>) -> Option<AlfaType> {
     // We can use the same PrattParser for composite types
     println!("DEBUG: Parsing type: {:?}", pair?);
