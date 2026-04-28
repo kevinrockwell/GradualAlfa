@@ -14,8 +14,8 @@ letexpr =  { "let" ~ vardec ~ "be" ~ expr ~ "in" ~ expr }
 ap      =  { left_expr ~ "(" ~ expr ~ ")" }
 unexpr  = _{ prefix ~ expr }
 inj     = _{ InjL | InjR }
-InjL    =  { "L" ~ "(" ~ expr ~ ")" }
-InjR    =  { "R" ~ "(" ~ expr ~ ")" }
+InjL    =  { "L" ~ "(" ~ expr ~ ")" | "L" ~ inj | "L" ~ unit }
+InjR    =  { "R" ~ "(" ~ expr ~ ")" | "R" ~ inj | "R" ~ unit }
 
 // Precedence implemented in code not in grammar
 binop   = _{ times | plus | minus | greater | less | eq }

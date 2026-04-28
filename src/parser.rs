@@ -20,11 +20,16 @@ fn parse_alfatype(pair: Option<Pair<Rule>>, _pratt: &PrattParser<Rule>) -> Optio
 }
 
 fn parse_var_dec(pair: Pair<Rule>, pratt: &PrattParser<Rule>) -> Id {
-    if let Rule::vardec = pair.as_rule() {
+    if Rule::vardec == pair.as_rule() {
         let mut inner = pair.into_inner();
         Id {
             id: inner.next().unwrap().to_string(),
             typ: parse_alfatype(inner.next(), pratt),
+        }
+    } else if Rule::id == pair.as_rule() {
+        Id {
+            id: pair.to_string(),
+            typ: None
         }
     } else {
         panic!("Trying to parse variable out of {:?}", pair)
@@ -56,6 +61,7 @@ fn parse_arith(pairs: Pairs<Rule>, pratt: &PrattParser<Rule>) -> ParseResult {
             Rule::pair => parse_expr(primary, pratt),
             // TODO: can bool/unit be removed?
             Rule::expr => parse_expr(primary, pratt),
+            // TODO: better error message
             _ => Err(format!("Unexpected arithmetic atom, got {:?}", primary)),
         })
         .map_infix(|lhs, op, rhs| {
@@ -170,8 +176,6 @@ fn parse_expr(current_rule: Pair<Rule>, pratt: &PrattParser<Rule>) -> ParseResul
     }
 }
 
-// TODO: add injl and injr to make sum types actually usable
-// TODO add fst, snd to make product types actually usable
 pub fn parse_alfa_program(prog: &str) -> ParseResult {
     // Set up the Pratt Parser
     let pratt = PrattParser::new()
@@ -205,7 +209,13 @@ mod tests {
         assert_eq!(parse_alfa_program("()").unwrap(), Unit);
         assert_eq!(parse_alfa_program("true").unwrap(), Bool(true));
         assert_eq!(parse_alfa_program("false").unwrap(), Bool(false));
-        assert_eq!(parse_alfa_program("x").unwrap(), Var(Id {id: "x".to_string(), typ: None}));
+        assert_eq!(
+            parse_alfa_program("x").unwrap(),
+            Var(Id {
+                id: "x".to_string(),
+                typ: None
+            })
+        );
     }
 
     #[test]
@@ -457,7 +467,7 @@ mod tests {
     }
 
     #[test]
-    fn test_pair() {
+    fn test_prod() {
         assert_eq!(
             parse_alfa_program("(1,2)").unwrap(),
             Pair(Box::new(Num(1)), Box::new(Num(2)))
@@ -486,5 +496,62 @@ mod tests {
                 Box::new(Num(3))
             )))))
         );
+    }
+
+    #[test]
+    fn test_sum() {
+        // Basic InjL/InjR
+        assert_eq!(parse_alfa_program("L(2)").unwrap(), InjL(Box::new(Num(2))));
+        assert_eq!(parse_alfa_program("R(2)").unwrap(), InjR(Box::new(Num(2))));
+        // The nicer syntax (spamming parentheses annoys me idk)
+        assert_eq!(
+            parse_alfa_program("L L R (2)").unwrap(),
+            InjL(Box::new(InjL(Box::new(InjR(Box::new(Num(2)))))))
+        );
+        // Nicer syntax with unit
+        assert_eq!(
+            parse_alfa_program("L L R ()").unwrap(),
+            InjL(Box::new(InjL(Box::new(InjR(Box::new(Unit))))))
+        );
+        // Fully parenthesized
+        assert_eq!(
+            parse_alfa_program("L(L(R((2))))").unwrap(),
+            InjL(Box::new(InjL(Box::new(InjR(Box::new(Num(2)))))))
+        );
+        // Parentheses + unit
+        assert_eq!(
+            parse_alfa_program("L(L(R(())))").unwrap(),
+            InjL(Box::new(InjL(Box::new(InjR(Box::new(Unit))))))
+        );
+    }
+
+    #[test]
+    fn test_case() {
+        assert_eq!(
+            parse_alfa_program("case L(1) of L(x) -> x else R(y) -> y + 1").unwrap(),
+            Case(
+                Box::new(InjL(Box::new(Num(1)))),
+                Id {
+                    id: "x".to_string(),
+                    typ: None
+                },
+                Box::new(Var(Id {
+                    id: "x".to_string(),
+                    typ: None
+                })),
+                Id {
+                    id: "y".to_string(),
+                    typ: None
+                },
+                Box::new(BinOp(
+                    Box::new(Var(Id {
+                        id: "y".to_string(),
+                        typ: None
+                    })),
+                    Plus,
+                    Box::new(Num(1))
+                ))
+            )
+        )
     }
 }
