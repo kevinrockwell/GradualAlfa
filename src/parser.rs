@@ -70,20 +70,16 @@ fn parse_arith(pairs: Pairs<Rule>, pratt: &PrattParser<Rule>) -> ParseResult {
             Rule::neg => Ok(Expr::UnOp(Prefix::Neg, Box::new(expr?))),
             _ => return Err(format!("Unexpected prefix operator {:?}", op)),
         })
-        .map_postfix(|expr, op| {
-            match op.as_rule() {
-                Rule::fst => Ok(Expr::PrjL(Box::new(expr?))),
-                Rule::snd => Ok(Expr::PrjR(Box::new(expr?))),
-                _ => return Err(format!("Unexpected postfix operator {:?}", op))
-            }
+        .map_postfix(|expr, op| match op.as_rule() {
+            Rule::fst => Ok(Expr::PrjL(Box::new(expr?))),
+            Rule::snd => Ok(Expr::PrjR(Box::new(expr?))),
+            _ => return Err(format!("Unexpected postfix operator {:?}", op)),
         })
         .parse(pairs)
 }
 
-fn parse_expr(pair: Pair<Rule>, pratt: &PrattParser<Rule>) -> ParseResult {
-    println!("DEBUG: parse_expr parsing {:?}", pair);
-    assert!(pair.as_rule() == Rule::expr, "parse_expr requires an expr");
-    let current_rule = pair.into_inner().next().unwrap();
+fn parse_expr(current_rule: Pair<Rule>, pratt: &PrattParser<Rule>) -> ParseResult {
+    // println!("DEBUG: parse_expr parsing {:?}", current_rule);
     match current_rule.as_rule() {
         Rule::fun => {
             let mut inner = current_rule.into_inner();
@@ -112,7 +108,13 @@ fn parse_expr(pair: Pair<Rule>, pratt: &PrattParser<Rule>) -> ParseResult {
             let left = parse_expr(inner.next().unwrap(), pratt)?;
             let id_right = parse_var_dec(inner.next().unwrap(), pratt);
             let right = parse_expr(inner.next().unwrap(), pratt)?;
-            Ok(Expr::Case(Box::new(cond), id_left, Box::new(left), id_right, Box::new(right)))
+            Ok(Expr::Case(
+                Box::new(cond),
+                id_left,
+                Box::new(left),
+                id_right,
+                Box::new(right),
+            ))
         }
         Rule::InjL => {
             let mut inner = current_rule.into_inner();
@@ -155,7 +157,11 @@ fn parse_expr(pair: Pair<Rule>, pratt: &PrattParser<Rule>) -> ParseResult {
             id: current_rule.to_string(),
             typ: None,
         })),
-        Rule::expr => parse_expr(current_rule, pratt), // ( expr )
+        Rule::expr => {
+            // This handles the recursive case, e.g. ( expr ), or when
+            // an expression is introduced and we need to get to the contents
+            parse_expr(current_rule.into_inner().next().unwrap(), pratt)
+        }
         _ => Ok(Expr::Unit),
     }
 }
@@ -361,11 +367,6 @@ mod tests {
     }
 
     #[test]
-    #[ignore] // TODO: currently fails
-    // this is because the ap rule uses leftterm to avoid recursion
-    // however, leftterm does not insert another expr, which means
-    // the call at the start parse_expr that strips the outer expr
-    // layer would panic. This is caught by the assert.
     fn test_ap() {
         assert_eq!(
             parse_alfa_program("f(42)").unwrap(),
@@ -403,17 +404,11 @@ mod tests {
     fn test_pair() {
         assert_eq!(
             parse_alfa_program("(1,2)").unwrap(),
-            Pair(
-                Box::new(Num(1)),
-                Box::new(Num(2))
-            )
+            Pair(Box::new(Num(1)), Box::new(Num(2)))
         );
         assert_eq!(
             parse_alfa_program("(1,false)").unwrap(),
-            Pair(
-                Box::new(Num(1)),
-                Box::new(Bool(false))
-            )
+            Pair(Box::new(Num(1)), Box::new(Bool(false)))
         );
     }
 }
