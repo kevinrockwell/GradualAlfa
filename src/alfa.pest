@@ -4,7 +4,7 @@ expr       =  { fun | ifexpr | letexpr | inj | case | ap | arith | pair | term |
 term       = _{ numlit | boollit | unit | id }
 arith      =  { arith_term ~ (binop ~ arith_term)* }
 arith_term = _{ prefix? ~ left_expr ~ postfix* }
-left_expr  = _{ term | "(" ~ expr ~ ")" }
+left_expr  = _{ term | pair | "(" ~ expr ~ ")" }
 
 pair    =  { "(" ~ expr ~ "," ~ expr ~ ")" }
 fun     =  { "fun" ~ vardec ~ "->" ~ expr }

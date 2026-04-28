@@ -50,6 +50,10 @@ fn parse_arith(pairs: Pairs<Rule>, pratt: &PrattParser<Rule>) -> ParseResult {
                 id: primary.to_string(),
                 typ: None,
             })),
+            // Kinda janky --- we want to be able to do (1,2).fst because the
+            // parentheses of the pair make this clear, but without this
+            // rule would need to do ((1, 2)).fst
+            Rule::pair => parse_expr(primary, pratt),
             // TODO: can bool/unit be removed?
             Rule::expr => parse_expr(primary, pratt),
             _ => Err(format!("Unexpected arithmetic atom, got {:?}", primary)),
@@ -79,7 +83,7 @@ fn parse_arith(pairs: Pairs<Rule>, pratt: &PrattParser<Rule>) -> ParseResult {
 }
 
 fn parse_expr(current_rule: Pair<Rule>, pratt: &PrattParser<Rule>) -> ParseResult {
-    // println!("DEBUG: parse_expr parsing {:?}", current_rule);
+    println!("DEBUG: parse_expr parsing {:?}", current_rule);
     match current_rule.as_rule() {
         Rule::fun => {
             let mut inner = current_rule.into_inner();
@@ -196,6 +200,15 @@ mod tests {
     use Infix::*;
 
     #[test]
+    fn test_literals() {
+        assert_eq!(parse_alfa_program("1").unwrap(), Num(1));
+        assert_eq!(parse_alfa_program("()").unwrap(), Unit);
+        assert_eq!(parse_alfa_program("true").unwrap(), Bool(true));
+        assert_eq!(parse_alfa_program("false").unwrap(), Bool(false));
+        assert_eq!(parse_alfa_program("x").unwrap(), Var(Id {id: "x".to_string(), typ: None}));
+    }
+
+    #[test]
     fn test_arith() {
         // Precedence of *
         assert_eq!(
@@ -270,6 +283,49 @@ mod tests {
                 GreaterThan,
                 Box::new(Num(3)),
             ),
+        );
+        // Test unary minus
+        assert_eq!(
+            parse_alfa_program("-1").unwrap(),
+            UnOp(Prefix::Neg, Box::new(Num(1)))
+        );
+        // Negation precedence
+        assert_eq!(
+            parse_alfa_program("-1 * 2").unwrap(),
+            BinOp(
+                Box::new(UnOp(Prefix::Neg, Box::new(Num(1)))),
+                Times,
+                Box::new(Num(2))
+            )
+        );
+        // Negation precedence with postfix
+        assert_eq!(
+            parse_alfa_program("-s.fst * 3").unwrap(),
+            BinOp(
+                Box::new(UnOp(
+                    Prefix::Neg,
+                    Box::new(PrjL(Box::new(Var(Id {
+                        id: "s".to_string(),
+                        typ: None
+                    }))))
+                )),
+                Times,
+                Box::new(Num(3))
+            )
+        );
+        assert_eq!(
+            parse_alfa_program("-s.snd * 3").unwrap(),
+            BinOp(
+                Box::new(UnOp(
+                    Prefix::Neg,
+                    Box::new(PrjR(Box::new(Var(Id {
+                        id: "s".to_string(),
+                        typ: None
+                    }))))
+                )),
+                Times,
+                Box::new(Num(3))
+            )
         );
     }
 
@@ -409,6 +465,26 @@ mod tests {
         assert_eq!(
             parse_alfa_program("(1,false)").unwrap(),
             Pair(Box::new(Num(1)), Box::new(Bool(false)))
+        );
+        assert_eq!(
+            parse_alfa_program("(1, fun x -> 2)").unwrap(),
+            Pair(
+                Box::new(Num(1)),
+                Box::new(Fun(
+                    Id {
+                        id: "x".to_string(),
+                        typ: None
+                    },
+                    Box::new(Num(2))
+                ))
+            )
+        );
+        assert_eq!(
+            parse_alfa_program("((1,2), 3).fst.snd").unwrap(),
+            PrjR(Box::new(PrjL(Box::new(Pair(
+                Box::new(Pair(Box::new(Num(1)), Box::new(Num(2)))),
+                Box::new(Num(3))
+            )))))
         );
     }
 }
