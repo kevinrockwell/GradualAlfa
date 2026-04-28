@@ -1,17 +1,21 @@
 alfa_prog = _{ SOI ~ expr ~ EOI }
 
-expr       =  { fun | ifexpr | letexpr | ap | arith | pair | term | "(" ~ expr ~ ")" }
+expr       =  { fun | ifexpr | letexpr | inj | case | ap | arith | pair | term | "(" ~ expr ~ ")" }
 term       = _{ numlit | boollit | unit | id }
 arith      =  { arith_term ~ (binop ~ arith_term)* }
-arith_term = _{ prefix? ~ left_expr }
+arith_term = _{ prefix? ~ left_expr ~ postfix* }
 left_expr  = _{ term | "(" ~ expr ~ ")" }
 
 pair    =  { "(" ~ expr ~ "," ~ expr ~ ")" }
 fun     =  { "fun" ~ vardec ~ "->" ~ expr }
 ifexpr  =  { "if" ~ expr ~ "then" ~ expr ~ "else" ~ expr }
+case    =  { "case" ~ expr ~ "of" ~ "L" ~ "(" ~ id ~ ")" ~ "->" ~ expr ~ "else" ~ "R" ~ "(" ~ id ~ ")" ~ "->" ~ expr }
 letexpr =  { "let" ~ vardec ~ "be" ~ expr ~ "in" ~ expr }
 ap      =  { left_expr ~ "(" ~ expr ~ ")" }
 unexpr  = _{ prefix ~ expr }
+inj     = _{ InjL | InjR }
+InjL    =  { "L" ~ "(" ~ expr ~ ")" }
+InjR    =  { "R" ~ "(" ~ expr ~ ")" }
 
 // Precedence implemented in code not in grammar
 binop   = _{ times | plus | minus | greater | less | eq }
@@ -23,6 +27,9 @@ less    =  { "<" }
 eq      =  { "=?" }
 prefix  = _{ neg }
 neg     =  { "-" }
+postfix = _{ fst | snd }
+fst     =  { ".fst" }
+snd     =  { ".snd" }
 
 numlit  = @{ '1'..'9' ~ num* }
 boollit = @{ "true" | "false" }

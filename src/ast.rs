@@ -9,7 +9,7 @@ pub enum AlfaType {
 }
 
 #[derive(Debug, PartialEq)]
-pub enum BinOp {
+pub enum Infix {
     Plus,
     Minus,
     Times,
@@ -19,7 +19,7 @@ pub enum BinOp {
 }
 
 #[derive(Debug, PartialEq)]
-pub enum UnOp {
+pub enum Prefix {
     Neg,
 }
 
@@ -46,9 +46,14 @@ pub enum Expr {
     Var(Id),
     Fun(Id, Box<Expr>),
     If(Box<Expr>, Box<Expr>, Box<Expr>),
-    Let(Id, Box<Expr>),
+    Case(Box<Expr>, Id, Box<Expr>, Id, Box<Expr>),
+    InjL(Box<Expr>),
+    InjR(Box<Expr>),
+    PrjL(Box<Expr>),
+    PrjR(Box<Expr>),
+    Let(Id, Box<Expr>, Box<Expr>),
     Ap(Box<Expr>, Box<Expr>),
-    BinaryExpr(Box<Expr>, BinOp, Box<Expr>),
-    UnaryExpr(UnOp, Box<Expr>),
+    BinOp(Box<Expr>, Infix, Box<Expr>),
+    UnOp(Prefix, Box<Expr>),
     Pair(Box<Expr>, Box<Expr>),
 }

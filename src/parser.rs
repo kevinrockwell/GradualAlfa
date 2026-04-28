@@ -56,24 +56,32 @@ fn parse_arith(pairs: Pairs<Rule>, pratt: &PrattParser<Rule>) -> ParseResult {
         })
         .map_infix(|lhs, op, rhs| {
             let binop = match op.as_rule() {
-                Rule::plus => BinOp::Plus,
-                Rule::minus => BinOp::Minus,
-                Rule::times => BinOp::Times,
-                Rule::greater => BinOp::GreaterThan,
-                Rule::less => BinOp::LessThan,
-                Rule::eq => BinOp::EqualTo,
+                Rule::plus => Infix::Plus,
+                Rule::minus => Infix::Minus,
+                Rule::times => Infix::Times,
+                Rule::greater => Infix::GreaterThan,
+                Rule::less => Infix::LessThan,
+                Rule::eq => Infix::EqualTo,
                 _ => return Err(format!("Unexpected infix operator {:?}", op)),
             };
-            Ok(Expr::BinaryExpr(Box::new(lhs?), binop, Box::new(rhs?)))
+            Ok(Expr::BinOp(Box::new(lhs?), binop, Box::new(rhs?)))
         })
         .map_prefix(|op, expr| match op.as_rule() {
-            Rule::neg => Ok(Expr::UnaryExpr(UnOp::Neg, Box::new(expr?))),
+            Rule::neg => Ok(Expr::UnOp(Prefix::Neg, Box::new(expr?))),
             _ => return Err(format!("Unexpected prefix operator {:?}", op)),
+        })
+        .map_postfix(|expr, op| {
+            match op.as_rule() {
+                Rule::fst => Ok(Expr::PrjL(Box::new(expr?))),
+                Rule::snd => Ok(Expr::PrjR(Box::new(expr?))),
+                _ => return Err(format!("Unexpected postfix operator {:?}", op))
+            }
         })
         .parse(pairs)
 }
 
 fn parse_expr(pair: Pair<Rule>, pratt: &PrattParser<Rule>) -> ParseResult {
+    println!("DEBUG: parse_expr parsing {:?}", pair);
     assert!(pair.as_rule() == Rule::expr, "parse_expr requires an expr");
     let current_rule = pair.into_inner().next().unwrap();
     match current_rule.as_rule() {
@@ -93,8 +101,28 @@ fn parse_expr(pair: Pair<Rule>, pratt: &PrattParser<Rule>) -> ParseResult {
         Rule::letexpr => {
             let mut inner = current_rule.into_inner();
             let id = parse_var_dec(inner.next().unwrap(), pratt);
+            let def = parse_expr(inner.next().unwrap(), pratt)?;
             let body = parse_expr(inner.next().unwrap(), pratt)?;
-            Ok(Expr::Let(id, Box::new(body)))
+            Ok(Expr::Let(id, Box::new(def), Box::new(body)))
+        }
+        Rule::case => {
+            let mut inner = current_rule.into_inner();
+            let cond = parse_expr(inner.next().unwrap(), pratt)?;
+            let id_left = parse_var_dec(inner.next().unwrap(), pratt);
+            let left = parse_expr(inner.next().unwrap(), pratt)?;
+            let id_right = parse_var_dec(inner.next().unwrap(), pratt);
+            let right = parse_expr(inner.next().unwrap(), pratt)?;
+            Ok(Expr::Case(Box::new(cond), id_left, Box::new(left), id_right, Box::new(right)))
+        }
+        Rule::InjL => {
+            let mut inner = current_rule.into_inner();
+            let body = parse_expr(inner.next().unwrap(), pratt)?;
+            Ok(Expr::InjL(Box::new(body)))
+        }
+        Rule::InjR => {
+            let mut inner = current_rule.into_inner();
+            let body = parse_expr(inner.next().unwrap(), pratt)?;
+            Ok(Expr::InjR(Box::new(body)))
         }
         Rule::ap => {
             let mut inner = current_rule.into_inner();
@@ -132,6 +160,8 @@ fn parse_expr(pair: Pair<Rule>, pratt: &PrattParser<Rule>) -> ParseResult {
     }
 }
 
+// TODO: add injl and injr to make sum types actually usable
+// TODO add fst, snd to make product types actually usable
 pub fn parse_alfa_program(prog: &str) -> ParseResult {
     // Set up the Pratt Parser
     let pratt = PrattParser::new()
@@ -140,7 +170,8 @@ pub fn parse_alfa_program(prog: &str) -> ParseResult {
             | Op::infix(Rule::eq, Assoc::Left))
         .op(Op::infix(Rule::plus, Assoc::Left) | Op::infix(Rule::minus, Assoc::Left))
         .op(Op::infix(Rule::times, Assoc::Left))
-        .op(Op::prefix(Rule::neg));
+        .op(Op::prefix(Rule::neg))
+        .op(Op::postfix(Rule::fst) | Op::postfix(Rule::snd));
     // If the program parses correctly, there is exactly one expr at the top level
     let program = match AlfaParser::parse(Rule::alfa_prog, prog) {
         Ok(p) => p,
@@ -150,4 +181,239 @@ pub fn parse_alfa_program(prog: &str) -> ParseResult {
     .next()
     .unwrap();
     parse_expr(program, &pratt)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use Expr::*;
+    use Infix::*;
+
+    #[test]
+    fn test_arith() {
+        // Precedence of *
+        assert_eq!(
+            parse_alfa_program("1 * 2 + 3 * 4").unwrap(),
+            BinOp(
+                Box::new(BinOp(Box::new(Num(1)), Times, Box::new(Num(2)))),
+                Plus,
+                Box::new(BinOp(Box::new(Num(3)), Times, Box::new(Num(4))))
+            )
+        );
+        // Parentheses are respected
+        assert_eq!(
+            parse_alfa_program("1 * (2 + 3) - 4").unwrap(),
+            BinOp(
+                Box::new(BinOp(
+                    Box::new(Num(1)),
+                    Times,
+                    Box::new(BinOp(Box::new(Num(2)), Plus, Box::new(Num(3))))
+                )),
+                Minus,
+                Box::new(Num(4))
+            )
+        );
+        // Associativity of + is correct
+        assert_eq!(
+            parse_alfa_program("1 + 2 + 3").unwrap(),
+            BinOp(
+                Box::new(BinOp(Box::new(Num(1)), Plus, Box::new(Num(2)))),
+                Plus,
+                Box::new(Num(3)),
+            ),
+        );
+        // Associativity of - is correct
+        assert_eq!(
+            parse_alfa_program("1 - 2 - 3").unwrap(),
+            BinOp(
+                Box::new(BinOp(Box::new(Num(1)), Minus, Box::new(Num(2)))),
+                Minus,
+                Box::new(Num(3)),
+            ),
+        );
+        // Associativity of * is correct
+        assert_eq!(
+            parse_alfa_program("1 * 2 * 3").unwrap(),
+            BinOp(
+                Box::new(BinOp(Box::new(Num(1)), Times, Box::new(Num(2)))),
+                Times,
+                Box::new(Num(3)),
+            ),
+        );
+        // Precedence of comparison operators
+        assert_eq!(
+            parse_alfa_program("1 + 2 =? 3").unwrap(),
+            BinOp(
+                Box::new(BinOp(Box::new(Num(1)), Plus, Box::new(Num(2)))),
+                EqualTo,
+                Box::new(Num(3)),
+            ),
+        );
+        assert_eq!(
+            parse_alfa_program("1 * 2 < 3").unwrap(),
+            BinOp(
+                Box::new(BinOp(Box::new(Num(1)), Times, Box::new(Num(2)))),
+                LessThan,
+                Box::new(Num(3)),
+            ),
+        );
+        assert_eq!(
+            parse_alfa_program("1 - 2 > 3").unwrap(),
+            BinOp(
+                Box::new(BinOp(Box::new(Num(1)), Minus, Box::new(Num(2)))),
+                GreaterThan,
+                Box::new(Num(3)),
+            ),
+        );
+    }
+
+    #[test]
+    fn test_fun() {
+        assert_eq!(
+            parse_alfa_program("fun x -> x - 2").unwrap(),
+            Fun(
+                Id {
+                    id: "x".to_string(),
+                    typ: None
+                },
+                Box::new(BinOp(
+                    Box::new(Var(Id {
+                        id: "x".to_string(),
+                        typ: None
+                    })),
+                    Minus,
+                    Box::new(Num(2))
+                ))
+            )
+        );
+        assert_eq!(
+            parse_alfa_program("fun y -> x * 42").unwrap(),
+            Fun(
+                Id {
+                    id: "y".to_string(),
+                    typ: None
+                },
+                Box::new(BinOp(
+                    Box::new(Var(Id {
+                        id: "x".to_string(),
+                        typ: None
+                    })),
+                    Times,
+                    Box::new(Num(42))
+                ))
+            )
+        );
+    }
+
+    #[test]
+    fn test_if() {
+        assert_eq!(
+            parse_alfa_program("if 1 < 2 then 17 else 37").unwrap(),
+            If(
+                Box::new(BinOp(Box::new(Num(1)), LessThan, Box::new(Num(2)))),
+                Box::new(Num(17)),
+                Box::new(Num(37))
+            )
+        );
+    }
+
+    #[test]
+    fn test_let() {
+        assert_eq!(
+            parse_alfa_program("let x be 42 in x * 12").unwrap(),
+            Let(
+                Id {
+                    id: "x".to_string(),
+                    typ: None
+                },
+                Box::new(Num(42)),
+                Box::new(BinOp(
+                    Box::new(Var(Id {
+                        id: "x".to_string(),
+                        typ: None
+                    })),
+                    Times,
+                    Box::new(Num(12))
+                ))
+            )
+        );
+        assert_eq!(
+            parse_alfa_program("let x be 12 - y in x").unwrap(),
+            Let(
+                Id {
+                    id: "x".to_string(),
+                    typ: None
+                },
+                Box::new(BinOp(
+                    Box::new(Num(12)),
+                    Minus,
+                    Box::new(Var(Id {
+                        id: "y".to_string(),
+                        typ: None
+                    }))
+                )),
+                Box::new(Var(Id {
+                    id: "x".to_string(),
+                    typ: None,
+                }))
+            )
+        );
+    }
+
+    #[test]
+    #[ignore] // TODO: currently fails
+    // this is because the ap rule uses leftterm to avoid recursion
+    // however, leftterm does not insert another expr, which means
+    // the call at the start parse_expr that strips the outer expr
+    // layer would panic. This is caught by the assert.
+    fn test_ap() {
+        assert_eq!(
+            parse_alfa_program("f(42)").unwrap(),
+            Ap(
+                Box::new(Var(Id {
+                    id: "f".to_string(),
+                    typ: None
+                })),
+                Box::new(Num(42))
+            )
+        );
+        assert_eq!(
+            parse_alfa_program("(fun x -> x + 1)(42)").unwrap(),
+            Ap(
+                Box::new(Fun(
+                    Id {
+                        id: "x".to_string(),
+                        typ: None
+                    },
+                    Box::new(BinOp(
+                        Box::new(Var(Id {
+                            id: "x".to_string(),
+                            typ: None
+                        })),
+                        Plus,
+                        Box::new(Num(1))
+                    ))
+                )),
+                Box::new(Num(42))
+            )
+        );
+    }
+
+    #[test]
+    fn test_pair() {
+        assert_eq!(
+            parse_alfa_program("(1,2)").unwrap(),
+            Pair(
+                Box::new(Num(1)),
+                Box::new(Num(2))
+            )
+        );
+        assert_eq!(
+            parse_alfa_program("(1,false)").unwrap(),
+            Pair(
+                Box::new(Num(1)),
+                Box::new(Bool(false))
+            )
+        );
+    }
 }
