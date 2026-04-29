@@ -45,22 +45,9 @@ pub enum Prefix {
     Neg,
 }
 
-// TODO: typ should probably be refactored out to be with the variable decl
-// instead of the ID? And then type checking will propagate, along with
-// (eventually) transforming AST to include casts/RTTI in some way.
-#[derive(Debug, Clone)]
+#[derive(Debug, PartialEq, Clone)]
 pub struct Id {
     pub id: String,
-    pub typ: Option<AlfaType>,
-}
-
-impl PartialEq for Id {
-    fn eq(&self, other: &Self) -> bool {
-        if self.id != other.id {
-            return false;
-        }
-        self.typ.as_ref() == other.typ.as_ref()
-    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -69,14 +56,14 @@ pub enum Expr {
     Bool(bool),
     Unit,
     Var(Id),
-    Fun(Id, Box<Expr>),
+    Fun(Id, Option<AlfaType>, Box<Expr>),
     If(Box<Expr>, Box<Expr>, Box<Expr>),
     Case(Box<Expr>, Id, Box<Expr>, Id, Box<Expr>),
     InjL(Box<Expr>),
     InjR(Box<Expr>),
     PrjL(Box<Expr>),
     PrjR(Box<Expr>),
-    Let(Id, Box<Expr>, Box<Expr>),
+    Let(Id, Option<AlfaType>, Box<Expr>, Box<Expr>),
     Ap(Box<Expr>, Box<Expr>),
     BinOp(Box<Expr>, Infix, Box<Expr>),
     UnOp(Prefix, Box<Expr>),
@@ -94,6 +81,7 @@ pub enum TypedExpr {
     },
     Fun {
         id: Id,
+        var_typ: AlfaType,
         body: Box<TypedExpr>,
         typ: AlfaType,
     },
@@ -129,6 +117,7 @@ pub enum TypedExpr {
     },
     Let {
         id: Id,
+        var_typ: AlfaType,
         def: Box<TypedExpr>,
         body: Box<TypedExpr>,
         typ: AlfaType,
@@ -174,9 +163,10 @@ pub fn var(id: Id, typ: AlfaType) -> TypedExpr {
     TypedExpr::Var { id, typ }
 }
 
-pub fn fun(id: Id, body: TypedExpr, typ: AlfaType) -> TypedExpr {
+pub fn fun(id: Id, var_typ: AlfaType, body: TypedExpr, typ: AlfaType) -> TypedExpr {
     TypedExpr::Fun {
         id,
+        var_typ,
         body: Box::new(body),
         typ,
     }
@@ -242,9 +232,16 @@ pub fn prjr(expr: TypedExpr, typ: AlfaType) -> TypedExpr {
     }
 }
 
-pub fn let_expr(id: Id, def: TypedExpr, body: TypedExpr, typ: AlfaType) -> TypedExpr {
+pub fn let_expr(
+    id: Id,
+    var_typ: AlfaType,
+    def: TypedExpr,
+    body: TypedExpr,
+    typ: AlfaType,
+) -> TypedExpr {
     TypedExpr::Let {
         id,
+        var_typ,
         def: Box::new(def),
         body: Box::new(body),
         typ,

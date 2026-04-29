@@ -37,18 +37,22 @@ fn parse_alfatype(pair: Option<Pair<Rule>>, pratt: &PrattParser<Rule>) -> Option
         .parse(pair?.into_inner())
 }
 
-fn parse_var_dec(pair: Pair<Rule>, pratt: &PrattParser<Rule>) -> Id {
-    if Rule::vardec == pair.as_rule() {
-        let mut inner = pair.into_inner();
-        Id {
-            id: inner.next().unwrap().to_string(),
-            typ: parse_alfatype(inner.next(), pratt),
-        }
-    } else if Rule::id == pair.as_rule() {
+fn parse_id(pair: Pair<Rule>) -> Id {
+    if Rule::id == pair.as_rule() {
         Id {
             id: pair.to_string(),
-            typ: None,
         }
+    } else {
+        panic!("Trying to parse variable out of {}", pair.as_str());
+    }
+}
+
+fn parse_var_dec(pair: Pair<Rule>, pratt: &PrattParser<Rule>) -> (Id, Option<AlfaType>) {
+    if Rule::vardec == pair.as_rule() {
+        let mut inner = pair.into_inner();
+        let id = parse_id(inner.next().unwrap());
+        let typ = parse_alfatype(inner.next(), pratt);
+        (id, typ)
     } else {
         panic!("Trying to parse variable out of {:?}", pair)
     }
@@ -71,7 +75,6 @@ fn parse_arith(pairs: Pairs<Rule>, pratt: &PrattParser<Rule>) -> ParseResult {
             Rule::unit => Ok(Expr::Unit),
             Rule::id => Ok(Expr::Var(Id {
                 id: primary.to_string(),
-                typ: None,
             })),
             // Kinda janky --- we want to be able to do (1,2).fst because the
             // parentheses of the pair make this clear, but without this
@@ -111,9 +114,9 @@ fn parse_expr(current_rule: Pair<Rule>, pratt: &PrattParser<Rule>) -> ParseResul
     match current_rule.as_rule() {
         Rule::fun => {
             let mut inner = current_rule.into_inner();
-            let id = parse_var_dec(inner.next().unwrap(), pratt);
+            let (id, typ) = parse_var_dec(inner.next().unwrap(), pratt);
             let body = parse_expr(inner.next().unwrap(), pratt)?;
-            Ok(Expr::Fun(id, Box::new(body)))
+            Ok(Expr::Fun(id, typ, Box::new(body)))
         }
         Rule::ifexpr => {
             let mut inner = current_rule.into_inner();
@@ -124,17 +127,17 @@ fn parse_expr(current_rule: Pair<Rule>, pratt: &PrattParser<Rule>) -> ParseResul
         }
         Rule::letexpr => {
             let mut inner = current_rule.into_inner();
-            let id = parse_var_dec(inner.next().unwrap(), pratt);
+            let (id, typ) = parse_var_dec(inner.next().unwrap(), pratt);
             let def = parse_expr(inner.next().unwrap(), pratt)?;
             let body = parse_expr(inner.next().unwrap(), pratt)?;
-            Ok(Expr::Let(id, Box::new(def), Box::new(body)))
+            Ok(Expr::Let(id, typ, Box::new(def), Box::new(body)))
         }
         Rule::case => {
             let mut inner = current_rule.into_inner();
             let cond = parse_expr(inner.next().unwrap(), pratt)?;
-            let id_left = parse_var_dec(inner.next().unwrap(), pratt);
+            let id_left = parse_id(inner.next().unwrap());
             let left = parse_expr(inner.next().unwrap(), pratt)?;
-            let id_right = parse_var_dec(inner.next().unwrap(), pratt);
+            let id_right = parse_id(inner.next().unwrap());
             let right = parse_expr(inner.next().unwrap(), pratt)?;
             Ok(Expr::Case(
                 Box::new(cond),
@@ -183,7 +186,6 @@ fn parse_expr(current_rule: Pair<Rule>, pratt: &PrattParser<Rule>) -> ParseResul
         Rule::unit => Ok(Expr::Unit),
         Rule::id => Ok(Expr::Var(Id {
             id: current_rule.to_string(),
-            typ: None,
         })),
         Rule::expr => {
             // This handles the recursive case, e.g. ( expr ), or when
@@ -236,7 +238,6 @@ mod tests {
             parse_alfa_program("x").unwrap(),
             Var(Id {
                 id: "x".to_string(),
-                typ: None
             })
         );
     }
@@ -339,7 +340,6 @@ mod tests {
                     Prefix::Neg,
                     Box::new(PrjL(Box::new(Var(Id {
                         id: "s".to_string(),
-                        typ: None
                     }))))
                 )),
                 Times,
@@ -353,7 +353,6 @@ mod tests {
                     Prefix::Neg,
                     Box::new(PrjR(Box::new(Var(Id {
                         id: "s".to_string(),
-                        typ: None
                     }))))
                 )),
                 Times,
@@ -369,12 +368,11 @@ mod tests {
             Fun(
                 Id {
                     id: "x".to_string(),
-                    typ: None
                 },
+                None,
                 Box::new(BinOp(
                     Box::new(Var(Id {
                         id: "x".to_string(),
-                        typ: None
                     })),
                     Minus,
                     Box::new(Num(2))
@@ -386,12 +384,11 @@ mod tests {
             Fun(
                 Id {
                     id: "y".to_string(),
-                    typ: None
                 },
+                None,
                 Box::new(BinOp(
                     Box::new(Var(Id {
                         id: "x".to_string(),
-                        typ: None
                     })),
                     Times,
                     Box::new(Num(42))
@@ -419,13 +416,12 @@ mod tests {
             Let(
                 Id {
                     id: "x".to_string(),
-                    typ: None
                 },
+                None,
                 Box::new(Num(42)),
                 Box::new(BinOp(
                     Box::new(Var(Id {
                         id: "x".to_string(),
-                        typ: None
                     })),
                     Times,
                     Box::new(Num(12))
@@ -437,19 +433,17 @@ mod tests {
             Let(
                 Id {
                     id: "x".to_string(),
-                    typ: None
                 },
+                None,
                 Box::new(BinOp(
                     Box::new(Num(12)),
                     Minus,
                     Box::new(Var(Id {
                         id: "y".to_string(),
-                        typ: None
                     }))
                 )),
                 Box::new(Var(Id {
                     id: "x".to_string(),
-                    typ: None,
                 }))
             )
         );
@@ -462,7 +456,6 @@ mod tests {
             Ap(
                 Box::new(Var(Id {
                     id: "f".to_string(),
-                    typ: None
                 })),
                 Box::new(Num(42))
             )
@@ -473,12 +466,11 @@ mod tests {
                 Box::new(Fun(
                     Id {
                         id: "x".to_string(),
-                        typ: None
                     },
+                    None,
                     Box::new(BinOp(
                         Box::new(Var(Id {
                             id: "x".to_string(),
-                            typ: None
                         })),
                         Plus,
                         Box::new(Num(1))
@@ -506,8 +498,8 @@ mod tests {
                 Box::new(Fun(
                     Id {
                         id: "x".to_string(),
-                        typ: None
                     },
+                    None,
                     Box::new(Num(2))
                 ))
             )
@@ -556,20 +548,16 @@ mod tests {
                 Box::new(InjL(Box::new(Num(1)))),
                 Id {
                     id: "x".to_string(),
-                    typ: None
                 },
                 Box::new(Var(Id {
                     id: "x".to_string(),
-                    typ: None
                 })),
                 Id {
                     id: "y".to_string(),
-                    typ: None
                 },
                 Box::new(BinOp(
                     Box::new(Var(Id {
                         id: "y".to_string(),
-                        typ: None
                     })),
                     Plus,
                     Box::new(Num(1))
@@ -586,9 +574,9 @@ mod tests {
             Fun(
                 Id {
                     id: "x".to_string(),
-                    typ: Some(AlfaType::Num)
                 },
-                Box::new(Num(1))
+                Some(AlfaType::Num),
+                Box::new(Num(1)),
             )
         );
         assert_eq!(
@@ -596,8 +584,8 @@ mod tests {
             Fun(
                 Id {
                     id: "x".to_string(),
-                    typ: Some(AlfaType::Bool)
                 },
+                Some(AlfaType::Bool),
                 Box::new(Num(1))
             )
         );
@@ -606,8 +594,8 @@ mod tests {
             Fun(
                 Id {
                     id: "x".to_string(),
-                    typ: Some(AlfaType::Dyn)
                 },
+                Some(AlfaType::Dyn),
                 Box::new(Num(1))
             )
         );
@@ -616,8 +604,8 @@ mod tests {
             Fun(
                 Id {
                     id: "x".to_string(),
-                    typ: Some(AlfaType::Unit)
                 },
+                Some(AlfaType::Unit),
                 Box::new(Num(1))
             )
         );
@@ -627,11 +615,11 @@ mod tests {
             Fun(
                 Id {
                     id: "x".to_string(),
-                    typ: Some(AlfaType::Sum(
-                        Box::new(AlfaType::Num),
-                        Box::new(AlfaType::Num)
-                    ))
                 },
+                Some(AlfaType::Sum(
+                    Box::new(AlfaType::Num),
+                    Box::new(AlfaType::Num)
+                )),
                 Box::new(Num(1))
             )
         );
@@ -641,11 +629,11 @@ mod tests {
             Fun(
                 Id {
                     id: "x".to_string(),
-                    typ: Some(AlfaType::Product(
-                        Box::new(AlfaType::Num),
-                        Box::new(AlfaType::Num)
-                    ))
                 },
+                Some(AlfaType::Product(
+                    Box::new(AlfaType::Num),
+                    Box::new(AlfaType::Num)
+                )),
                 Box::new(Num(1))
             )
         );
@@ -655,11 +643,11 @@ mod tests {
             Fun(
                 Id {
                     id: "x".to_string(),
-                    typ: Some(AlfaType::Arrow(
-                        Box::new(AlfaType::Num),
-                        Box::new(AlfaType::Num)
-                    ))
                 },
+                Some(AlfaType::Arrow(
+                    Box::new(AlfaType::Num),
+                    Box::new(AlfaType::Num)
+                )),
                 Box::new(Num(1))
             )
         );
@@ -669,17 +657,17 @@ mod tests {
             Fun(
                 Id {
                     id: "x".to_string(),
-                    typ: Some(AlfaType::Arrow(
-                        Box::new(AlfaType::Sum(
-                            Box::new(AlfaType::Num),
-                            Box::new(AlfaType::Num)
-                        )),
-                        Box::new(AlfaType::Product(
-                            Box::new(AlfaType::Num),
-                            Box::new(AlfaType::Num)
-                        )),
-                    ))
                 },
+                Some(AlfaType::Arrow(
+                    Box::new(AlfaType::Sum(
+                        Box::new(AlfaType::Num),
+                        Box::new(AlfaType::Num)
+                    )),
+                    Box::new(AlfaType::Product(
+                        Box::new(AlfaType::Num),
+                        Box::new(AlfaType::Num)
+                    )),
+                )),
                 Box::new(Num(1))
             )
         );
@@ -688,14 +676,14 @@ mod tests {
             Fun(
                 Id {
                     id: "x".to_string(),
-                    typ: Some(AlfaType::Sum(
-                        Box::new(AlfaType::Num),
-                        Box::new(AlfaType::Product(
-                            Box::new(AlfaType::Num),
-                            Box::new(AlfaType::Num)
-                        )),
-                    ))
                 },
+                Some(AlfaType::Sum(
+                    Box::new(AlfaType::Num),
+                    Box::new(AlfaType::Product(
+                        Box::new(AlfaType::Num),
+                        Box::new(AlfaType::Num)
+                    )),
+                )),
                 Box::new(Num(1))
             )
         );
@@ -705,14 +693,14 @@ mod tests {
             Fun(
                 Id {
                     id: "x".to_string(),
-                    typ: Some(AlfaType::Product(
-                        Box::new(AlfaType::Arrow(
-                            Box::new(AlfaType::Num),
-                            Box::new(AlfaType::Num)
-                        )),
-                        Box::new(AlfaType::Num)
-                        )),
                 },
+                Some(AlfaType::Product(
+                    Box::new(AlfaType::Arrow(
+                        Box::new(AlfaType::Num),
+                        Box::new(AlfaType::Num)
+                    )),
+                    Box::new(AlfaType::Num)
+                )),
                 Box::new(Num(1))
             )
         );

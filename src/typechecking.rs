@@ -1,5 +1,5 @@
 use crate::ast::*;
-use std::{fmt::format, vec::Vec};
+use std::{vec::Vec};
 
 type TypeCheckResult = Result<TypedExpr, String>;
 
@@ -126,13 +126,14 @@ fn typecheck_helper(expr: Expr, ctx: Context) -> TypeCheckResult {
             };
             Ok(TypedExpr::Var { id, typ })
         }
-        Expr::Fun(mut id, body) => {
+        Expr::Fun(id, arg_typ, body) => {
             // Get the type of the body, adding the variable to the context
             use AlfaType::Dyn;
+            let arg_typ = arg_typ.unwrap_or(Dyn);
             let body =
-                typecheck_helper(*body, ctx.update(&id.id, id.typ.as_ref().unwrap_or(&Dyn)))?;
-            let typ = arrow(id.typ.take().unwrap_or(Dyn), body.get_type().clone());
-            Ok(fun(id, body, typ))
+                typecheck_helper(*body, ctx.update(&id.id, &arg_typ))?;
+            let typ = arrow(arg_typ.clone(), body.get_type().clone());
+            Ok(fun(id, arg_typ, body, typ))
         }
         Expr::If(cond, if_body, else_body) => {
             let cond = typecheck_helper(*cond, ctx.clone())?;
@@ -237,9 +238,9 @@ fn typecheck_helper(expr: Expr, ctx: Context) -> TypeCheckResult {
         }
         // Its astounding that I thought putting variable declaration types
         // in the Id struct was a good idea. It causes me pain each time
-        Expr::Let(mut id, def, body) => {
+        Expr::Let(id, arg_typ, def, body) => {
             let def = typecheck_helper(*def, ctx.clone())?;
-            let var_typ = if let Some(typ) = id.typ.take() {
+            let var_typ = if let Some(typ) = arg_typ {
                 if !typ.consistent(&def) {
                     return Err(format!(
                         "Variable definition {:?} must be consistent with annotated type {:?}",
@@ -253,7 +254,7 @@ fn typecheck_helper(expr: Expr, ctx: Context) -> TypeCheckResult {
             };
             let body = typecheck_helper(*body, ctx.update(&id.id, &var_typ))?;
             let typ = body.get_type().clone();
-            Ok(let_expr(id, def, body, typ))
+            Ok(let_expr(id, var_typ, def, body, typ))
         }
         Expr::Ap(fun, arg) => {
             use AlfaType::{Arrow, Dyn};
@@ -337,7 +338,6 @@ mod tests {
     fn empty_id(name: &str) -> Id {
         Id {
             id: name.to_string(),
-            typ: None,
         }
     }
 
@@ -347,7 +347,7 @@ mod tests {
         let p = parse_alfa_program("fun x -> x").unwrap();
         assert_eq!(
             typecheck(p).unwrap(),
-            fun(empty_id("x"), var(empty_id("x"), Dyn), arrow(Dyn, Dyn))
+            fun(empty_id("x"), Dyn, var(empty_id("x"), Dyn), arrow(Dyn, Dyn))
         );
     }
 }
