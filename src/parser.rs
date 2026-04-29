@@ -231,6 +231,7 @@ mod tests {
     #[test]
     fn test_literals() {
         assert_eq!(parse_alfa_program("1").unwrap(), Num(1));
+        assert_eq!(parse_alfa_program("0").unwrap(), Num(0));
         assert_eq!(parse_alfa_program("()").unwrap(), Unit);
         assert_eq!(parse_alfa_program("true").unwrap(), Bool(true));
         assert_eq!(parse_alfa_program("false").unwrap(), Bool(false));

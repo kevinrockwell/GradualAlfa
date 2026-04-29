@@ -31,7 +31,7 @@ postfix = _{ fst | snd }
 fst     =  { ".fst" }
 snd     =  { ".snd" }
 
-numlit  = @{ '1'..'9' ~ num* }
+numlit  = @{ '1'..'9' ~ num*  | "0" }
 boollit = @{ "true" | "false" }
 vardec  =  { id | ("(" ~ id ~ ":" ~ alfatype ~ ")") }
 
