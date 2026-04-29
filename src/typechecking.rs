@@ -26,9 +26,9 @@ mod context {
             Context { vec }
         }
 
-        pub fn lookup(&self, id: &Id) -> Option<&AlfaType> {
+        pub fn lookup(&self, id: &str) -> Option<&AlfaType> {
             for e in self.vec.iter().rev() {
-                if id.id == e.id {
+                if id == e.id {
                     return Some(&e.typ);
                 }
             }
@@ -44,6 +44,35 @@ mod context {
             Context::new_from(res)
         }
     } // impl Context
+    mod tests {
+        use super::*;
+        #[test]
+        fn test_lookup() {
+            use AlfaType::*;
+            assert_eq!(Context::new().lookup("k"), None);
+            let ctx = Context::new_from(vec![
+                ContextEntry { id: "k", typ: Bool },
+                ContextEntry { id: "t", typ: Unit },
+                ContextEntry { id: "k", typ: Num },
+            ]);
+            assert_eq!(ctx.lookup("k"), Some(&Num));
+            assert_eq!(ctx.lookup("t"), Some(&Unit));
+            assert_eq!(ctx.lookup("z"), None);
+        }
+
+        #[test]
+        fn test_update() {
+            use AlfaType::*;
+            let ctx = Context::new_from(vec![
+                ContextEntry { id: "k", typ: Bool },
+                ContextEntry { id: "t", typ: Unit },
+            ]);
+            assert_eq!(ctx.update("k", &Num).lookup("k"), Some(&Num));
+            assert_eq!(ctx.update("t", &Bool).lookup("k"), Some(&Bool));
+            assert_eq!(ctx.update("j", &Bool).lookup("j"), Some(&Bool));
+            assert_eq!(ctx.update("j", &Bool).lookup("j"), Some(&Bool));
+        }
+    } // mod test
 } // mod context
 
 use context::Context;
@@ -90,7 +119,7 @@ fn typecheck_helper(expr: Expr, ctx: Context) -> TypeCheckResult {
         // TODO: why did i put the types in the IDs like this aghghghghghghghhg
         // it makes no sense frfr.
         Expr::Var(id) => {
-            let typ = match ctx.lookup(&id) {
+            let typ = match ctx.lookup(&id.id) {
                 Some(t) => t.clone(),
                 // TODO: make nicer error message
                 None => return Err(format!("Unknown variable: ``{}''", id.id)),
@@ -99,20 +128,11 @@ fn typecheck_helper(expr: Expr, ctx: Context) -> TypeCheckResult {
         }
         Expr::Fun(mut id, body) => {
             // Get the type of the body, adding the variable to the context
-            let typed_body = typecheck_helper(
-                *body,
-                // TODO: this seems unnecessary: ctx should be able to accept &str
-                ctx.update(id.id.as_str(), id.typ.as_ref().unwrap_or(&AlfaType::Dyn)),
-            )?;
-            let fun_typ = AlfaType::Arrow(
-                Box::new(id.typ.take().unwrap_or(AlfaType::Dyn)),
-                Box::new(typed_body.get_type().clone()),
-            );
-            Ok(TypedExpr::Fun {
-                id,
-                body: Box::new(typed_body),
-                typ: fun_typ,
-            })
+            use AlfaType::Dyn;
+            let body =
+                typecheck_helper(*body, ctx.update(&id.id, id.typ.as_ref().unwrap_or(&Dyn)))?;
+            let typ = arrow(id.typ.take().unwrap_or(Dyn), body.get_type().clone());
+            Ok(fun(id, body, typ))
         }
         Expr::If(cond, if_body, else_body) => {
             let cond = typecheck_helper(*cond, ctx.clone())?;
@@ -132,19 +152,12 @@ fn typecheck_helper(expr: Expr, ctx: Context) -> TypeCheckResult {
             }
             // TODO this should be the most general type we can get from the two!!!
             let typ = if_body.get_type().clone();
-            Ok(TypedExpr::If {
-                cond: Box::new(cond),
-                if_body: Box::new(if_body),
-                else_body: Box::new(else_body),
-                typ,
-            })
+            Ok(if_expr(cond, if_body, else_body, typ))
         }
         Expr::Case(cond, l_var, l_body, r_var, r_body) => {
+            use AlfaType::{Dyn, Sum};
             let cond = typecheck_helper(*cond, ctx.clone())?;
-            if !cond.consistent(&AlfaType::Sum(
-                Box::new(AlfaType::Dyn),
-                Box::new(AlfaType::Dyn),
-            )) {
+            if !cond.consistent(&sum(Dyn, Dyn)) {
                 return Err(format!(
                     "case condition must be consistent with Sum type, is {:?}",
                     cond
@@ -152,17 +165,17 @@ fn typecheck_helper(expr: Expr, ctx: Context) -> TypeCheckResult {
             }
             // If cond is a sum type, the type of x in L(x) is the first entry
             // of the sum. Otherwise, cond is ? and so x should also be type ?
-            let l_typ = if let AlfaType::Sum(l, _) = cond.get_type() {
+            let l_typ = if let Sum(l, _) = cond.get_type() {
                 l.as_ref().clone()
             } else {
-                AlfaType::Dyn
+                Dyn
             };
             let l_body = typecheck_helper(*l_body, ctx.update(l_var.id.as_str(), &l_typ))?;
             // Same thing for R(x)
-            let r_typ = if let AlfaType::Sum(l, _) = cond.get_type() {
+            let r_typ = if let Sum(l, _) = cond.get_type() {
                 l.as_ref().clone()
             } else {
-                AlfaType::Dyn
+                Dyn
             };
             let r_body = typecheck_helper(*r_body, ctx.update(r_var.id.as_str(), &r_typ))?;
             if !l_body.consistent(&r_body) {
@@ -173,14 +186,7 @@ fn typecheck_helper(expr: Expr, ctx: Context) -> TypeCheckResult {
             }
             // TODO this should be the most general type we can get from the two!!!
             let typ = l_body.get_type().clone();
-            Ok(TypedExpr::Case {
-                cond: Box::new(cond),
-                l_var,
-                l_body: Box::new(l_body),
-                r_var,
-                r_body: Box::new(r_body),
-                typ,
-            })
+            Ok(case(cond, l_var, l_body, r_var, r_body, typ))
         }
         Expr::InjL(expr) => {
             let expr = typecheck_helper(*expr, ctx.clone())?;
@@ -189,61 +195,45 @@ fn typecheck_helper(expr: Expr, ctx: Context) -> TypeCheckResult {
             // this expression the other side of the Sum type, so we just let
             // it be ?.
             let typ = AlfaType::Sum(Box::new(expr.get_type().clone()), Box::new(AlfaType::Dyn));
-            Ok(TypedExpr::InjL {
-                expr: Box::new(expr),
-                typ,
-            })
+            Ok(injl(expr, typ))
         }
         Expr::InjR(expr) => {
             let expr = typecheck_helper(*expr, ctx.clone())?;
             // Same commentary as before regarding the type of the expression
             let typ = AlfaType::Sum(Box::new(expr.get_type().clone()), Box::new(AlfaType::Dyn));
-            Ok(TypedExpr::InjR {
-                expr: Box::new(expr),
-                typ,
-            })
+            Ok(injr(expr, typ))
         }
         Expr::PrjL(expr) => {
+            use AlfaType::{Dyn, Product};
             let expr = typecheck_helper(*expr, ctx.clone())?;
-            if !expr.consistent(&AlfaType::Product(
-                Box::new(AlfaType::Dyn),
-                Box::new(AlfaType::Dyn),
-            )) {
+            if !expr.consistent(&product(Dyn, Dyn)) {
                 return Err(format!(
                     ".fst must operate on something consistent with Product typ, instead has {:?}",
                     expr
                 ));
             }
-            let typ = if let AlfaType::Product(fst, _) = expr.get_type() {
+            let typ = if let Product(fst, _) = expr.get_type() {
                 fst.as_ref().clone()
             } else {
                 AlfaType::Dyn
             };
-            Ok(TypedExpr::PrjL {
-                expr: Box::new(expr),
-                typ,
-            })
+            Ok(prjl(expr, typ))
         }
         Expr::PrjR(expr) => {
+            use AlfaType::{Dyn, Product};
             let expr = typecheck_helper(*expr, ctx.clone())?;
-            if !expr.consistent(&AlfaType::Product(
-                Box::new(AlfaType::Dyn),
-                Box::new(AlfaType::Dyn),
-            )) {
+            if !expr.consistent(&product(Dyn, Dyn)) {
                 return Err(format!(
                     ".snd must operate on something consistent with Product typ, instead has {:?}",
                     expr
                 ));
             }
-            let typ = if let AlfaType::Product(_, snd) = expr.get_type() {
+            let typ = if let Product(_, snd) = expr.get_type() {
                 snd.as_ref().clone()
             } else {
                 AlfaType::Dyn
             };
-            Ok(TypedExpr::PrjR {
-                expr: Box::new(expr),
-                typ,
-            })
+            Ok(prjr(expr, typ))
         }
         // Its astounding that I thought putting variable declaration types
         // in the Id struct was a good idea. It causes me pain each time
@@ -263,33 +253,26 @@ fn typecheck_helper(expr: Expr, ctx: Context) -> TypeCheckResult {
             };
             let body = typecheck_helper(*body, ctx.update(&id.id, &var_typ))?;
             let typ = body.get_type().clone();
-            Ok(TypedExpr::Let {
-                id,
-                def: Box::new(def),
-                body: Box::new(body),
-                typ,
-            })
+            Ok(let_expr(id, def, body, typ))
         }
         Expr::Ap(fun, arg) => {
             use AlfaType::{Arrow, Dyn};
             let fun = typecheck_helper(*fun, ctx.clone())?;
-            if !fun.consistent(&Arrow(Box::new(Dyn), Box::new(Dyn))) {
+            if !fun.consistent(&arrow(Dyn, Dyn)) {
                 return Err(format!(
                     "LHS of Application ({:?}) must be consistent with function type",
                     fun
                 ));
             }
+            // If `fun` is not an Arrow type, it is Dyn, so its return type
+            // will also be Dyn
             let typ = if let Arrow(_, ret) = fun.get_type() {
                 ret.as_ref().clone()
             } else {
                 Dyn
             };
             let arg = typecheck_helper(*arg, ctx.clone())?;
-            Ok(TypedExpr::Ap {
-                fun: Box::new(fun),
-                arg: Box::new(arg),
-                typ,
-            })
+            Ok(ap(fun, arg, typ))
         }
         Expr::BinOp(lhs, op, rhs) => {
             use Infix::*;
@@ -298,7 +281,7 @@ fn typecheck_helper(expr: Expr, ctx: Context) -> TypeCheckResult {
                 LessThan | GreaterThan | EqualTo => AlfaType::Bool,
             };
             let lhs = typecheck_helper(*lhs, ctx.clone())?;
-            let rhs = typecheck_helper(*rhs, ctx.clone())?;
+            let rhs = typecheck_helper(*rhs, ctx)?;
             if !lhs.consistent(&AlfaType::Num) {
                 return Err(format!(
                     "Binary Expression argument ({:?}) must be consistent with Num",
@@ -310,41 +293,29 @@ fn typecheck_helper(expr: Expr, ctx: Context) -> TypeCheckResult {
                     rhs
                 ));
             }
-            Ok(TypedExpr::BinOp {
-                lhs: Box::new(lhs),
-                op,
-                rhs: Box::new(rhs),
-                typ,
-            })
+            Ok(binop(lhs, op, rhs, typ))
         }
         Expr::UnOp(op, expr) => {
             use Prefix::*;
             let typ = match op {
                 Neg => AlfaType::Num,
             };
-            let expr = typecheck_helper(*expr, ctx.clone())?;
-            Ok(TypedExpr::UnOp {
-                op,
-                expr: Box::new(expr),
-                typ,
-            })
+            let expr = typecheck_helper(*expr, ctx)?;
+            Ok(unop(op, expr, typ))
         }
         Expr::Pair(fst, snd) => {
             let fst = typecheck_helper(*fst, ctx.clone())?;
-            let snd = typecheck_helper(*snd, ctx.clone())?;
-            let typ = AlfaType::Product(
-                Box::new(fst.get_type().clone()),
-                Box::new(snd.get_type().clone()),
-            );
-            Ok(TypedExpr::Pair {
-                fst: Box::new(fst),
-                snd: Box::new(snd),
-                typ,
-            })
+            let snd = typecheck_helper(*snd, ctx)?;
+            let typ = product(fst.get_type().clone(), snd.get_type().clone());
+            Ok(pair(fst, snd, typ))
         }
     }
 }
 
 pub fn typecheck(expr: Expr) -> TypeCheckResult {
     typecheck_helper(expr, Context::new())
+}
+
+mod tests {
+    use super::*;
 }
