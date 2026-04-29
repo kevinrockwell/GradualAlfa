@@ -1,5 +1,9 @@
+pub trait KnownType {
+    fn get_type(&self) -> &AlfaType;
+}
+
 #[allow(dead_code)]
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Clone)]
 pub enum AlfaType {
     Num,
     Bool,
@@ -7,6 +11,13 @@ pub enum AlfaType {
     Arrow(Box<AlfaType>, Box<AlfaType>),
     Product(Box<AlfaType>, Box<AlfaType>),
     Sum(Box<AlfaType>, Box<AlfaType>),
+    Dyn,
+}
+
+impl KnownType for AlfaType {
+    fn get_type(&self) -> &AlfaType {
+        &self
+    }
 }
 
 #[derive(Debug, PartialEq)]
@@ -27,7 +38,7 @@ pub enum Prefix {
 // TODO: typ should probably be refactored out to be with the variable decl
 // instead of the ID? And then type checking will propagate, along with
 // (eventually) transforming AST to include casts/RTTI in some way.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Id {
     pub id: String,
     pub typ: Option<AlfaType>,
@@ -61,3 +72,101 @@ pub enum Expr {
     UnOp(Prefix, Box<Expr>),
     Pair(Box<Expr>, Box<Expr>),
 }
+
+#[derive(Debug, PartialEq)]
+pub enum TypedExpr {
+    Num(i32),
+    Bool(bool),
+    Unit,
+    Var {
+        id: Id,
+        typ: AlfaType,
+    },
+    Fun {
+        id: Id,
+        body: Box<TypedExpr>,
+        typ: AlfaType,
+    },
+    If {
+        cond: Box<TypedExpr>,
+        if_body: Box<TypedExpr>,
+        else_body: Box<TypedExpr>,
+        typ: AlfaType,
+    },
+    Case {
+        cond: Box<TypedExpr>,
+        l_var: Id,
+        l_body: Box<TypedExpr>,
+        r_var: Id,
+        r_body: Box<TypedExpr>,
+        typ: AlfaType,
+    },
+    InjL {
+        expr: Box<TypedExpr>,
+        typ: AlfaType,
+    },
+    InjR {
+        expr: Box<TypedExpr>,
+        typ: AlfaType,
+    },
+    PrjL {
+        expr: Box<TypedExpr>,
+        typ: AlfaType,
+    },
+    PrjR {
+        expr: Box<TypedExpr>,
+        typ: AlfaType,
+    },
+    Let {
+        id: Id,
+        def: Box<TypedExpr>,
+        body: Box<TypedExpr>,
+        typ: AlfaType,
+    },
+    Ap {
+        fun: Box<TypedExpr>,
+        arg: Box<TypedExpr>,
+        typ: AlfaType,
+    },
+    BinOp {
+        lhs: Box<TypedExpr>,
+        op: Infix,
+        rhs: Box<TypedExpr>,
+        typ: AlfaType,
+    },
+    UnOp {
+        op: Prefix,
+        expr: Box<TypedExpr>,
+        typ: AlfaType,
+    },
+    Pair {
+        fst: Box<TypedExpr>,
+        snd: Box<TypedExpr>,
+        typ: AlfaType,
+    },
+}
+
+impl KnownType for TypedExpr {
+    fn get_type(&self) -> &AlfaType {
+        use TypedExpr::*;
+        match self {
+            Num(_) => &AlfaType::Num,
+            Bool(_) => &AlfaType::Bool,
+            Unit => &AlfaType::Unit,
+            Var { typ: t, .. } => t,
+            Fun { typ: t, .. } => t,
+            If { typ: t, .. } => t,
+            Case { typ: t, .. } => t,
+            InjL { typ: t, .. } => t,
+            InjR { typ: t, .. } => t,
+            PrjL { typ: t, .. } => t,
+            PrjR { typ: t, .. } => t,
+            Let { typ: t, .. } => t,
+            Ap { typ: t, .. } => t,
+            BinOp { typ: t, .. } => t,
+            UnOp { typ: t, .. } => t,
+            Pair { typ: t, .. } => t,
+        }
+    }
+}
+

@@ -6,7 +6,6 @@ use pest_derive::Parser;
 use crate::ast::*;
 
 pub type ParseResult = Result<Expr, String>;
-type AlfaTypeResult = Result<AlfaType, String>;
 
 #[derive(Parser, Debug)]
 #[grammar = "alfa.pest"]
@@ -21,8 +20,11 @@ fn parse_alfatype(pair: Option<Pair<Rule>>, pratt: &PrattParser<Rule>) -> Option
             Rule::numType => Some(Num),
             Rule::boolType => Some(Bool),
             Rule::unitType => Some(Unit),
+            Rule::dynType => Some(Dyn),
             Rule::alfatype => parse_alfatype(Some(primary), pratt),
             // TODO this entire thing should be refactored into a Result
+            // But also if the grammar is set up correctly, should be unreachable?
+            // Not actually sure what the idiomatic way to handle this is
             _ => panic!("Unexpected base type: {}", primary.as_str()),
         })
         // TODO: is there a better name than "op" for these???
@@ -30,7 +32,7 @@ fn parse_alfatype(pair: Option<Pair<Rule>>, pratt: &PrattParser<Rule>) -> Option
             Rule::arrow => Some(Arrow(Box::new(lhs?), Box::new(rhs?))),
             Rule::product => Some(Product(Box::new(lhs?), Box::new(rhs?))),
             Rule::sum => Some(Sum(Box::new(lhs?), Box::new(rhs?))),
-            _ => unreachable!(),
+            _ => unreachable!("Unexpected Composite Type {}", op.as_str()),
         })
         .parse(pair?.into_inner())
 }
@@ -595,6 +597,16 @@ mod tests {
                 Id {
                     id: "x".to_string(),
                     typ: Some(AlfaType::Bool)
+                },
+                Box::new(Num(1))
+            )
+        );
+        assert_eq!(
+            parse_alfa_program("fun (x: ?) -> 1").unwrap(),
+            Fun(
+                Id {
+                    id: "x".to_string(),
+                    typ: Some(AlfaType::Dyn)
                 },
                 Box::new(Num(1))
             )

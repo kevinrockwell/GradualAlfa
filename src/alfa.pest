@@ -37,10 +37,11 @@ vardec  =  { id | ("(" ~ id ~ ":" ~ alfatype ~ ")") }
 
 alfatype =  { typeterm ~ (type_op ~ typeterm)* }
 type_op  = _{ arrow | product | sum }
-typelit  = _{ numType | boolType | unitType }
+typelit  = _{ numType | boolType | unitType | dynType }
 numType  =  { "Num" }
 boolType =  { "Bool" }
 unitType =  { "Unit" }
+dynType  =  { "?" }
 typeterm = _{ (typelit | ("(" ~ alfatype ~ ")")) }
 arrow    =  { "->" }
 product  =  { "*" }

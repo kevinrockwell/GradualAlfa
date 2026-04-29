@@ -1,6 +1,10 @@
-mod parser;
 mod ast;
+mod parser;
+mod typechecking;
 
 fn main() {
-    println!("parsed: {:?}", parser::parse_alfa_program("2 + 3 * 6 + 4").unwrap());
+    println!(
+        "parsed: {:?}",
+        parser::parse_alfa_program("fun (x: Num + Num -> Num) -> x").unwrap()
+    );
 }
