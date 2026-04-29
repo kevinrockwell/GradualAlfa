@@ -1,3 +1,5 @@
+use std::fmt;
+
 pub trait KnownType {
     fn get_type(&self) -> &AlfaType;
 }
@@ -40,6 +42,21 @@ pub enum Infix {
     EqualTo,
 }
 
+impl fmt::Display for Infix {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        use Infix::*;
+        let res = match *self {
+            Plus => "+",
+            Minus => "-",
+            Times => "*",
+            LessThan => "<",
+            GreaterThan => ">",
+            EqualTo => "=?",
+        };
+        f.write_str(res)
+    }
+}
+
 #[derive(Debug, PartialEq)]
 pub enum Prefix {
     Neg,
@@ -48,6 +65,10 @@ pub enum Prefix {
 #[derive(Debug, PartialEq, Clone)]
 pub struct Id {
     pub id: String,
+}
+
+pub fn id(s: &str) -> Id {
+    Id { id: s.to_string() }
 }
 
 #[derive(Debug, PartialEq)]
@@ -151,7 +172,7 @@ pub fn num(n: i32) -> TypedExpr {
     TypedExpr::Num(n)
 }
 
-pub fn bool(b: bool) -> TypedExpr {
+pub fn bool_lit(b: bool) -> TypedExpr {
     TypedExpr::Bool(b)
 }
 
@@ -159,13 +180,13 @@ pub fn unit() -> TypedExpr {
     TypedExpr::Unit
 }
 
-pub fn var(id: Id, typ: AlfaType) -> TypedExpr {
-    TypedExpr::Var { id, typ }
+pub fn var(name: &str, typ: AlfaType) -> TypedExpr {
+    TypedExpr::Var { id: id(name), typ }
 }
 
-pub fn fun(id: Id, var_typ: AlfaType, body: TypedExpr, typ: AlfaType) -> TypedExpr {
+pub fn fun(var: &str, var_typ: AlfaType, body: TypedExpr, typ: AlfaType) -> TypedExpr {
     TypedExpr::Fun {
-        id,
+        id: id(var),
         var_typ,
         body: Box::new(body),
         typ,
@@ -188,17 +209,17 @@ pub fn if_expr(
 
 pub fn case(
     cond: TypedExpr,
-    l_var: Id,
+    l_var: &str,
     l_body: TypedExpr,
-    r_var: Id,
+    r_var: &str,
     r_body: TypedExpr,
     typ: AlfaType,
 ) -> TypedExpr {
     TypedExpr::Case {
         cond: Box::new(cond),
-        l_var,
+        l_var: id(l_var),
         l_body: Box::new(l_body),
-        r_var,
+        r_var: id(r_var),
         r_body: Box::new(r_body),
         typ,
     }
@@ -233,14 +254,14 @@ pub fn prjr(expr: TypedExpr, typ: AlfaType) -> TypedExpr {
 }
 
 pub fn let_expr(
-    id: Id,
+    var: &str,
     var_typ: AlfaType,
     def: TypedExpr,
     body: TypedExpr,
     typ: AlfaType,
 ) -> TypedExpr {
     TypedExpr::Let {
-        id,
+        id: id(var),
         var_typ,
         def: Box::new(def),
         body: Box::new(body),
