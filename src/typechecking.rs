@@ -318,4 +318,36 @@ pub fn typecheck(expr: Expr) -> TypeCheckResult {
 
 mod tests {
     use super::*;
+    use crate::parser::parse_alfa_program;
+
+    #[test]
+    fn test_consistency() {
+        use AlfaType::*;
+        let t = arrow(Num, Unit);
+        assert!(t.consistent(&Dyn));
+        assert!(t.consistent(&arrow(Dyn, Dyn)));
+        assert!(t.consistent(&arrow(Num, Dyn)));
+        assert!(t.consistent(&arrow(Dyn, Unit)));
+        assert!(t.consistent(&arrow(Num, Unit)));
+        assert!(!t.consistent(&Num));
+        assert!(!t.consistent(&arrow(Num, Num)));
+        assert!(!t.consistent(&sum(Num, Unit)));
+    }
+
+    fn empty_id(name: &str) -> Id {
+        Id {
+            id: name.to_string(),
+            typ: None,
+        }
+    }
+
+    #[test]
+    fn test_fun() {
+        use AlfaType::*;
+        let p = parse_alfa_program("fun x -> x").unwrap();
+        assert_eq!(
+            typecheck(p).unwrap(),
+            fun(empty_id("x"), var(empty_id("x"), Dyn), arrow(Dyn, Dyn))
+        );
+    }
 }
