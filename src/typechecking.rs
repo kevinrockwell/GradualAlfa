@@ -77,7 +77,7 @@ mod context {
 
 use context::Context;
 
-trait Consistency {
+pub trait Consistency {
     fn consistent(&self, other: &impl KnownType) -> bool;
     fn most_typed_consistent(&self, other: &impl KnownType) -> AlfaType;
 }
@@ -146,8 +146,6 @@ fn typecheck_helper(expr: Expr, ctx: Context) -> TypeCheckResult {
         Expr::Num(n) => Ok(TypedExpr::Num(n)),
         Expr::Bool(b) => Ok(TypedExpr::Bool(b)),
         Expr::Unit => Ok(TypedExpr::Unit),
-        // TODO: why did i put the types in the IDs like this aghghghghghghghhg
-        // it makes no sense frfr.
         Expr::Var(id) => {
             let typ = match ctx.lookup(&id.id) {
                 Some(t) => t.clone(),
@@ -292,15 +290,20 @@ fn typecheck_helper(expr: Expr, ctx: Context) -> TypeCheckResult {
                     fun
                 ));
             }
-            // If `fun` is not an Arrow type, it is Dyn, so its return type
-            // will also be Dyn
-            let typ = if let Arrow(_, ret) = fun.get_type() {
-                ret.as_ref().clone()
+            // This is essentially the `fun` cast of Seik et al.
+            let (arg_typ, ret_typ) = if let Arrow(arg, ret) = fun.get_type() {
+                (arg.as_ref().clone(), ret.as_ref().clone())
             } else {
-                Dyn
+                (Dyn, Dyn)
             };
             let arg = typecheck_helper(*arg, ctx.clone())?;
-            Ok(ap(fun, arg, typ))
+            if !arg.consistent(&arg_typ) {
+                return Err(format!(
+                    "Argument {:?} to function {:?} inconsistent",
+                    arg, fun
+                ));
+            }
+            Ok(ap(fun, arg, ret_typ))
         }
         Expr::BinOp(lhs, op, rhs) => {
             use Infix::*;
@@ -649,6 +652,26 @@ mod tests {
                 var("f", arrow(Num, Dyn)),
                 ap(var("g", arrow(Num, Num)), var("x", Dyn), Num),
                 Dyn
+            )
+        );
+        let p = parse_alfa_program("(fun (x: Num) -> x + 1)(false)").unwrap();
+        if let Err(s) = typecheck(p) {
+            assert!(s.contains("Argument Bool(false) to function"));
+        } else {
+            panic!("Inconsistent argument type with function should fail typechecking");
+        }
+        let p = parse_alfa_program("(fun x -> x + 1)(false)").unwrap();
+        assert_eq!(
+            typecheck(p).unwrap(),
+            ap(
+                fun(
+                    "x",
+                    Dyn,
+                    binop(var("x", Dyn), Infix::Plus, num(1), Num),
+                    arrow(Dyn, Num)
+                ),
+                bool_lit(false),
+                Num
             )
         );
     }
