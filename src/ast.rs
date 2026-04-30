@@ -1,4 +1,4 @@
-use std::fmt;
+use std::{fmt};
 
 pub trait KnownType {
     fn get_type(&self) -> &AlfaType;
@@ -32,7 +32,38 @@ impl KnownType for AlfaType {
     }
 }
 
-#[derive(Debug, PartialEq)]
+impl AlfaType {
+    pub fn is_base(&self) -> bool {
+        use AlfaType::*;
+        match self {
+            Num | Bool | Unit => true,
+            _ => false
+        }
+    }
+
+    pub fn is_ground(&self) -> bool {
+        use AlfaType::*;
+        self.is_base() || match self {
+            Arrow(arg, ret) => **arg == Dyn && **ret == Dyn,
+            Sum(l, r) => **l == Dyn && **r == Dyn,
+            Product(fst, snd) => **fst == Dyn && **snd == Dyn,
+            _ => false
+        }
+    }
+
+    pub fn get_ground(&self) -> AlfaType {
+        use AlfaType::*;
+        match self {
+            Num | Bool | Unit => self.clone(),
+            Arrow(_, _) => arrow(Dyn, Dyn),
+            Sum(_, _) => sum(Dyn, Dyn),
+            Product(_, _) => product(Dyn, Dyn),
+            Dyn => panic!("No ground type for Dyn"),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Infix {
     Plus,
     Minus,
@@ -57,7 +88,7 @@ impl fmt::Display for Infix {
     }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Copy, Debug, PartialEq)]
 pub enum Prefix {
     Neg,
 }
@@ -71,7 +102,7 @@ pub fn id(s: &str) -> Id {
     Id { id: s.to_string() }
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum Expr {
     Num(i32),
     Bool(bool),
@@ -91,7 +122,7 @@ pub enum Expr {
     Pair(Box<Expr>, Box<Expr>),
 }
 
-#[derive(Debug, PartialEq)]
+#[derive(Clone, Debug, PartialEq)]
 pub enum TypedExpr {
     Num(i32),
     Bool(bool),
@@ -163,6 +194,9 @@ pub enum TypedExpr {
         fst: Box<TypedExpr>,
         snd: Box<TypedExpr>,
         typ: AlfaType,
+    },
+    Value {
+        val: Box<AlfaValue>,
     },
 }
 
@@ -322,6 +356,44 @@ impl KnownType for TypedExpr {
             BinOp { typ: t, .. } => t,
             UnOp { typ: t, .. } => t,
             Pair { typ: t, .. } => t,
+            Value { val } => val.get_type(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub enum AlfaValue {
+    Num(i32),
+    Bool(bool),
+    Unit,
+    Pair(Box<AlfaValue>, Box<AlfaValue>, AlfaType),
+    InjL(Box<AlfaValue>, AlfaType),
+    InjR(Box<AlfaValue>, AlfaType),
+    Fun(Id, AlfaType, TypedExpr, AlfaType),
+    Cast(Box<AlfaValue>, AlfaType),
+}
+
+impl KnownType for AlfaValue {
+    fn get_type(&self) -> &AlfaType {
+        use AlfaValue::*;
+        match self {
+            Num(_) => &AlfaType::Num,
+            Bool(_) => &AlfaType::Bool,
+            Unit => &AlfaType::Unit,
+            Pair(_, _, typ) => typ,
+            InjL(_, typ) => typ,
+            InjR(_, typ) => typ,
+            Fun(_, _, _, typ) => typ,
+            Cast(_, typ) => typ,
+        }
+    }
+}
+
+impl AlfaValue {
+    pub fn inner(self) -> AlfaValue {
+        match self {
+            AlfaValue::Cast(val, _) => *val,
+            s => s,
         }
     }
 }

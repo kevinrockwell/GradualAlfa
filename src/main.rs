@@ -1,4 +1,5 @@
 mod ast;
+mod eval;
 mod parser;
 mod typechecking;
 
