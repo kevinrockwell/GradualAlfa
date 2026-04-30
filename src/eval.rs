@@ -570,7 +570,13 @@ mod test {
                     product(AlfaType::Num, AlfaType::Bool)
                 ))
             );
-            // TODO: test errors
+            // Cast failures manifest going T1 -> Dyn -> T2
+            // Otherwise it will just be unreachable: we only use cast rules from Siek et al.
+            let v = Cast(Box::new(Num(1)), Dyn);
+            assert_eq!(
+                cast(v, AlfaType::Bool),
+                Err("Cannot cast Num to Bool".to_string())
+            );
         }
     }
 
@@ -730,9 +736,6 @@ mod test {
         test_bool_ans("1 =? 3", false);
         test_bool_ans("1 =? 1", true);
         let e = typecheck("let (x: ?) be 2 + 3 in x");
-        assert_eq!(
-            eval(e),
-            Ok(Cast(Box::new(Num(5)), AlfaType::Dyn))
-        );
+        assert_eq!(eval(e), Ok(Cast(Box::new(Num(5)), AlfaType::Dyn)));
     }
 }
