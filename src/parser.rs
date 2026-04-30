@@ -11,7 +11,6 @@ pub type ParseResult = Result<Expr, String>;
 #[grammar = "alfa.pest"]
 struct AlfaParser;
 
-// TODO: Types
 fn parse_alfatype(pair: Option<Pair<Rule>>, pratt: &PrattParser<Rule>) -> Option<AlfaType> {
     println!("DEBUG: Parsing type: {:?}", pair.as_ref()?);
     use AlfaType::*;
@@ -22,12 +21,8 @@ fn parse_alfatype(pair: Option<Pair<Rule>>, pratt: &PrattParser<Rule>) -> Option
             Rule::unitType => Some(Unit),
             Rule::dynType => Some(Dyn),
             Rule::alfatype => parse_alfatype(Some(primary), pratt),
-            // TODO this entire thing should be refactored into a Result
-            // But also if the grammar is set up correctly, should be unreachable?
-            // Not actually sure what the idiomatic way to handle this is
-            _ => panic!("Unexpected base type: {}", primary.as_str()),
+            _ => unreachable!("Unexpected base type: {}", primary.as_str()),
         })
-        // TODO: is there a better name than "op" for these???
         .map_infix(|lhs, op, rhs| match op.as_rule() {
             Rule::arrow => Some(Arrow(Box::new(lhs?), Box::new(rhs?))),
             Rule::product => Some(Product(Box::new(lhs?), Box::new(rhs?))),
@@ -80,10 +75,9 @@ fn parse_arith(pairs: Pairs<Rule>, pratt: &PrattParser<Rule>) -> ParseResult {
             // parentheses of the pair make this clear, but without this
             // rule would need to do ((1, 2)).fst
             Rule::pair => parse_expr(primary, pratt),
-            // TODO: can bool/unit be removed?
             Rule::expr => parse_expr(primary, pratt),
             // TODO: better error message
-            _ => Err(format!("Unexpected arithmetic atom, got {:?}", primary)),
+            _ => Err(format!("Unexpected arithmetic atom, got {:?}", primary.as_str())),
         })
         .map_infix(|lhs, op, rhs| {
             let binop = match op.as_rule() {
@@ -93,7 +87,7 @@ fn parse_arith(pairs: Pairs<Rule>, pratt: &PrattParser<Rule>) -> ParseResult {
                 Rule::greater => Infix::GreaterThan,
                 Rule::less => Infix::LessThan,
                 Rule::eq => Infix::EqualTo,
-                _ => return Err(format!("Unexpected infix operator {:?}", op)),
+                _ => return Err(format!("Unexpected infix operator {:?}", op.as_str())),
             };
             Ok(Expr::BinOp(Box::new(lhs?), binop, Box::new(rhs?)))
         })
