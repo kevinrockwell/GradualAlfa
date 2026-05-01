@@ -1,4 +1,4 @@
-use std::{fmt};
+use std::fmt::{self, Display};
 
 pub trait KnownType {
     fn get_type(&self) -> &AlfaType;
@@ -32,23 +32,39 @@ impl KnownType for AlfaType {
     }
 }
 
+impl Display for AlfaType {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use AlfaType::*;
+        match self {
+            Num => f.write_str("Num"),
+            Bool => f.write_str("Bool"),
+            Unit => f.write_str("Unit"),
+            Arrow(a, r) => write!(f, "({}) -> ({})", a, r),
+            Sum(a, r) => write!(f, "({}) + ({})", a, r),
+            Product(a, r) => write!(f, "{} * {}", a, r),
+            Dyn => f.write_str("?"),
+        }
+    }
+}
+
 impl AlfaType {
     pub fn is_base(&self) -> bool {
         use AlfaType::*;
         match self {
             Num | Bool | Unit => true,
-            _ => false
+            _ => false,
         }
     }
 
     pub fn is_ground(&self) -> bool {
         use AlfaType::*;
-        self.is_base() || match self {
-            Arrow(arg, ret) => **arg == Dyn && **ret == Dyn,
-            Sum(l, r) => **l == Dyn && **r == Dyn,
-            Product(fst, snd) => **fst == Dyn && **snd == Dyn,
-            _ => false
-        }
+        self.is_base()
+            || match self {
+                Arrow(arg, ret) => **arg == Dyn && **ret == Dyn,
+                Sum(l, r) => **l == Dyn && **r == Dyn,
+                Product(fst, snd) => **fst == Dyn && **snd == Dyn,
+                _ => false,
+            }
     }
 
     pub fn get_ground(&self) -> AlfaType {
@@ -96,6 +112,12 @@ pub enum Prefix {
 #[derive(Debug, PartialEq, Clone)]
 pub struct Id {
     pub id: String,
+}
+
+impl Display for Id {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.write_str(&self.id)
+    }
 }
 
 pub fn id(s: &str) -> Id {
@@ -371,6 +393,40 @@ pub enum AlfaValue {
     InjR(Box<AlfaValue>, AlfaType),
     Fun(Id, AlfaType, TypedExpr, AlfaType),
     Cast(Box<AlfaValue>, AlfaType),
+}
+
+impl Display for AlfaValue {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        use AlfaValue::*;
+        match self {
+            Num(n) => write!(f, "{}", n),
+            Bool(b) => write!(f, "{}", b),
+            Unit => f.write_str("Unit"),
+            Pair(fst, snd, _) => write!(f, "({}, {})", fst, snd),
+            InjL(val, _) => {
+                if **val == Unit {
+                    f.write_str("L ()")
+                } else {
+                    write!(f, "L({})", val)
+                }
+            }
+            InjR(val, _) => {
+                if **val == Unit {
+                    f.write_str("R ()")
+                } else {
+                    write!(f, "R({})", val)
+                }
+            }
+            Fun(id, typ, _, _) => {
+                if *typ == AlfaType::Dyn {
+                    write!(f, "fun {} -> ...", id)
+                } else {
+                    write!(f, "fun ({}: {}) -> ...", id, typ)
+                }
+            }
+            Cast(val, _) => write!(f, "{}", val),
+        }
+    }
 }
 
 impl KnownType for AlfaValue {

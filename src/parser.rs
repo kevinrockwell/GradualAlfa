@@ -12,7 +12,6 @@ pub type ParseResult = Result<Expr, String>;
 struct AlfaParser;
 
 fn parse_alfatype(pair: Option<Pair<Rule>>, pratt: &PrattParser<Rule>) -> Option<AlfaType> {
-    println!("DEBUG: Parsing type: {:?}", pair.as_ref()?);
     use AlfaType::*;
     pratt
         .map_primary(|primary| match primary.as_rule() {
@@ -54,7 +53,6 @@ fn parse_var_dec(pair: Pair<Rule>, pratt: &PrattParser<Rule>) -> (Id, Option<Alf
 }
 
 fn parse_arith(pairs: Pairs<Rule>, pratt: &PrattParser<Rule>) -> ParseResult {
-    // println!("DEBUG arith pairs: {:?}", pairs);
     pratt
         .map_primary(|primary| match primary.as_rule() {
             Rule::numlit => Ok(Expr::Num(primary.as_str().parse().unwrap())),
@@ -76,6 +74,7 @@ fn parse_arith(pairs: Pairs<Rule>, pratt: &PrattParser<Rule>) -> ParseResult {
             // rule would need to do ((1, 2)).fst
             Rule::pair => parse_expr(primary, pratt),
             Rule::expr => parse_expr(primary, pratt),
+            Rule::ap => parse_expr(primary, pratt),
             // TODO: better error message
             _ => Err(format!("Unexpected arithmetic atom, got {:?}", primary.as_str())),
         })
@@ -104,7 +103,6 @@ fn parse_arith(pairs: Pairs<Rule>, pratt: &PrattParser<Rule>) -> ParseResult {
 }
 
 fn parse_expr(current_rule: Pair<Rule>, pratt: &PrattParser<Rule>) -> ParseResult {
-    // println!("DEBUG: parse_expr parsing {:?}", current_rule);
     match current_rule.as_rule() {
         Rule::fun => {
             let mut inner = current_rule.into_inner();
@@ -194,9 +192,9 @@ pub fn parse_alfa_program(prog: &str) -> ParseResult {
     // Set up the Pratt Parser
     let pratt = PrattParser::new()
         // "Operators" on types
-        .op(Op::infix(Rule::arrow, Assoc::Left))
-        .op(Op::infix(Rule::sum, Assoc::Left))
-        .op(Op::infix(Rule::product, Assoc::Left))
+        .op(Op::infix(Rule::arrow, Assoc::Right))
+        .op(Op::infix(Rule::sum, Assoc::Right))
+        .op(Op::infix(Rule::product, Assoc::Right))
         // Arithmetic operators
         .op(Op::infix(Rule::greater, Assoc::Left)
             | Op::infix(Rule::less, Assoc::Left)

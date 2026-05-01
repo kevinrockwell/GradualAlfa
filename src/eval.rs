@@ -1,6 +1,6 @@
 use crate::ast::*;
 
-type EvalResult = Result<AlfaValue, String>;
+pub type EvalResult = Result<AlfaValue, String>;
 type CastResult<T> = Result<T, String>;
 
 mod cast {
@@ -184,7 +184,6 @@ pub fn expecting_num(expr: TypedExpr) -> CastResult<i32> {
 // way, hardcoding types where appropriate (e.g. the condition of an `if` expression is cast
 // directly to a boolean instead of using a cast like the `fun` of Siek et al.)
 pub fn eval(expr: TypedExpr) -> EvalResult {
-    use AlfaType::Dyn;
     use AlfaValue::*;
     match expr {
         TypedExpr::Num(n) => Ok(Num(n)),
@@ -193,8 +192,8 @@ pub fn eval(expr: TypedExpr) -> EvalResult {
         TypedExpr::Pair { fst, snd, typ } => {
             let fst = eval(*fst)?;
             let snd = eval(*snd)?;
-            let typ = product(fst.get_type().clone(), snd.get_type().clone());
-            Ok(Pair(Box::new(fst), Box::new(snd), typ))
+            let actual_typ = product(fst.get_type().clone(), snd.get_type().clone());
+            cast(Pair(Box::new(fst), Box::new(snd), actual_typ), typ)
         }
         TypedExpr::Value { val } => Ok(*val),
         TypedExpr::Fun {
@@ -214,7 +213,7 @@ pub fn eval(expr: TypedExpr) -> EvalResult {
             // Once casts are inserted and are allowed, we know we can safely
             // consider the ``inner'' function value
             if let Fun(id, _, body, _) = fun.inner() {
-                Ok(eval(subst(&id, &arg, body))?)
+                cast(eval(subst(&id, &arg, body))?, typ)
             } else {
                 unreachable!("Arrow type must correspond to Function value")
             }
@@ -267,18 +266,18 @@ pub fn eval(expr: TypedExpr) -> EvalResult {
         TypedExpr::InjR { expr, typ } => Ok(InjR(Box::new(eval(*expr)?), typ)),
         TypedExpr::PrjL { expr, typ } => {
             let (fst_t, snd_t) = prod_cast(expr.get_type())?;
-            let pair = cast(eval(*expr)?, product(fst_t.clone(), snd_t))?;
+            let pair = cast(eval(*expr)?, product(fst_t, snd_t))?;
             if let Pair(fst, _, _) = pair.inner() {
-                cast(*fst, fst_t)
+                cast(*fst, typ)
             } else {
                 unreachable!("Cast to Product type should ensure value is Pair")
             }
         }
         TypedExpr::PrjR { expr, typ } => {
             let (fst_t, snd_t) = prod_cast(expr.get_type())?;
-            let pair = cast(eval(*expr)?, product(fst_t, snd_t.clone()))?;
+            let pair = cast(eval(*expr)?, product(fst_t, snd_t))?;
             if let Pair(_, snd, _) = pair.inner() {
-                cast(*snd, snd_t)
+                cast(*snd, typ)
             } else {
                 unreachable!("Cast to Product type should ensure value is Pair")
             }
@@ -324,17 +323,21 @@ mod test {
     use crate::parser::parse_alfa_program;
     mod subst {
         use super::*;
+        #[allow(unused_imports)]
         use AlfaType::{Dyn, Num};
 
+        #[allow(unused)]
         fn run_subst_test(sub_id: &str, val: &AlfaValue, start: &TypedExpr, goal: TypedExpr) {
             let res = subst(&id(sub_id), &val, start.clone());
             assert_eq!(res, goal);
         }
 
+        #[allow(unused)]
         fn val(v: AlfaValue) -> TypedExpr {
             TypedExpr::Value { val: Box::new(v) }
         }
 
+        #[allow(unused)]
         fn numval(n: i32) -> TypedExpr {
             TypedExpr::Value {
                 val: Box::new(AlfaValue::Num(n)),
@@ -520,6 +523,7 @@ mod test {
     }
     mod cast {
         use super::*;
+        #[allow(unused)]
         use AlfaType::Dyn;
 
         #[test]
@@ -580,6 +584,7 @@ mod test {
         }
     }
 
+    #[allow(unused)]
     fn typecheck(prog: &str) -> TypedExpr {
         use crate::typechecking::typecheck;
         let p = parse_alfa_program(prog).unwrap();
@@ -701,6 +706,7 @@ mod test {
         );
     }
 
+    #[allow(unused)]
     fn test_num_ans(prog: &str, ans: i32) {
         assert_eq!(
             eval(typecheck(prog)).expect("Ill typed program being tested against"),
@@ -708,6 +714,7 @@ mod test {
         )
     }
 
+    #[allow(unused)]
     fn test_bool_ans(prog: &str, ans: bool) {
         assert_eq!(
             eval(typecheck(prog)).expect("Ill typed program being tested against"),

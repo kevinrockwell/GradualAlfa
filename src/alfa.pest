@@ -3,7 +3,7 @@ alfa_prog = _{ SOI ~ expr ~ EOI }
 expr       =  { fun | ifexpr | letexpr | inj | case | ap | arith | pair | term | "(" ~ expr ~ ")" }
 term       = _{ numlit | boollit | unit | id }
 arith      =  { arith_term ~ (binop ~ arith_term)* }
-arith_term = _{ prefix? ~ left_expr ~ postfix* }
+arith_term = _{ prefix? ~ (ap | left_expr) ~ postfix* }
 left_expr  = _{ term | pair | "(" ~ expr ~ ")" }
 
 pair    =  { "(" ~ expr ~ "," ~ expr ~ ")" }
@@ -31,7 +31,7 @@ postfix = _{ fst | snd }
 fst     =  { ".fst" }
 snd     =  { ".snd" }
 
-numlit  = @{ '1'..'9' ~ num*  | "0" }
+numlit  = @{ '1'..'9' ~ num* | "0" }
 boollit = @{ "true" | "false" }
 vardec  =  { id | ("(" ~ id ~ ":" ~ alfatype ~ ")") }
 
