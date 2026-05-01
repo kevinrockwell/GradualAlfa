@@ -448,7 +448,7 @@ impl KnownType for AlfaValue {
 impl AlfaValue {
     pub fn inner(self) -> AlfaValue {
         match self {
-            AlfaValue::Cast(val, _) => *val,
+            AlfaValue::Cast(val, _) => val.inner(),
             s => s,
         }
     }

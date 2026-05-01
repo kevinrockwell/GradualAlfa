@@ -205,15 +205,15 @@ pub fn eval(expr: TypedExpr) -> EvalResult {
         TypedExpr::Var { id: _, typ: _ } => {
             unreachable!("Substitution Failure on Well Typed Program")
         }
-        TypedExpr::Ap { fun, arg, typ } => {
+        TypedExpr::Ap { fun, arg, typ: _ } => {
             let (arg_typ, ret_typ) = fun_cast(fun.get_type())?;
             // First, for soundness, cast to the derived function type
-            let fun = cast(eval(*fun)?, arrow(arg_typ.clone(), ret_typ.clone()))?;
+            let fun = eval(*fun)?;
             let arg = cast(eval(*arg)?, arg_typ)?;
             // Once casts are inserted and are allowed, we know we can safely
             // consider the ``inner'' function value
             if let Fun(id, _, body, _) = fun.inner() {
-                cast(eval(subst(&id, &arg, body))?, typ)
+                cast(eval(subst(&id, &arg, body))?, ret_typ)
             } else {
                 unreachable!("Arrow type must correspond to Function value")
             }
@@ -284,15 +284,13 @@ pub fn eval(expr: TypedExpr) -> EvalResult {
         }
         TypedExpr::Let {
             id,
-            var_typ,
+            var_typ: _,
             def,
             body,
             typ,
         } => {
-            // Cast definition to expected type
-            let def = cast(eval(*def)?, var_typ)?;
+            let def = eval(*def)?;
             let result = eval(subst(&id, &def, *body));
-            // Cast result to expected type
             cast(result?, typ)
         }
         TypedExpr::BinOp { lhs, op, rhs, typ } => {
@@ -306,14 +304,14 @@ pub fn eval(expr: TypedExpr) -> EvalResult {
                 Infix::GreaterThan => Bool(lhs > rhs),
                 Infix::EqualTo => Bool(lhs == rhs),
             };
-            cast(result, typ)
+            Ok(result)
         }
         TypedExpr::UnOp { op, expr, typ } => {
             let val = expecting_num(*expr)?;
             let result = match op {
                 Prefix::Neg => Num(-val),
             };
-            cast(result, typ)
+            Ok(result)
         }
     }
 }
@@ -689,7 +687,6 @@ mod test {
         assert_eq!(eval(e), Ok(Num(1)));
         let e = typecheck("(1, false).snd");
         assert_eq!(eval(e), Ok(Bool(false)));
-        // TODO: this panics, need to get inner probably.
         let e = typecheck("(fun x -> x.fst)((1, false))");
         assert_eq!(eval(e), Ok(Cast(Box::new(Num(1)), AlfaType::Dyn)));
         let e = typecheck("(fun x -> x.snd)((1, false))");
