@@ -1,0 +1,172 @@
+% This is annote.bib
+% Author: Ayman Ammoura
+% A demo for CMPUT 603 Fall 2002.
+% The order of the following entries is irrelevant. They will be sorted according to the
+% bibliography style used.
+%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
+
+@inproceedings{siek2006gradual,
+  title={Gradual typing for functional languages},
+  author={Siek, Jeremy G and Taha, Walid},
+  booktitle={Scheme and functional programming workshop},
+  volume={6},
+  pages={81--92},
+  year={2006},
+  annote={This paper introduces the concept of gradual typing. The problems addressed are twofold: firstly, as noted in the narrative summary, it is beneficial to gradually transition from dynamic to static typing. Seconldy, while there are systems that seek to allow both dynamic and static types in a single program, they either explicitly did not attempt to give static guarantees or were too week in the guarantees that they offered. This paper introduces a Gradually Typed Lambda Calculus (GTLC) as an example gradually typed language that both offers much stronger static guarantees and has runtime checks at boundries between untyped and typed code to guarantee soundness. It offers both static and dynamic semantics for the GTLC. 
+  \\\indent
+  To evaluate this work, the authors offer mechanized proofs that the GTLC is both type safe and also demonstrate that it correctly catches the motivating examples of programs that should be rejected statically but were not by previous type systems. They also reason about convienent evolution by designing the GTLC to be equivalent to the simply typed lambda calculus when a program is fully annotated, and equivalent to a dynamically typed lambda calculus (up to adding casts to the unknown type in some places) in a program with no type annotations.
+  \\\indent
+  The authors leave open richer type systems, including support for object oriented programming pardigms, and implementing this work in other languages. They also mention performing studies to identify the impact on programmer productivity.}
+}
+@inproceedings{siek2015refined,
+  title={Refined criteria for gradual typing},
+  author={Siek, Jeremy G and Vitousek, Michael M and Cimini, Matteo and Boyland, John Tang},
+  booktitle={1st Summit on Advances in Programming Languages (SNAPL 2015)},
+  pages={274--293},
+  year={2015},
+  organization={Schloss Dagstuhl--Leibniz-Zentrum fuer Informatik},
+  annote={This paper identifies a dilution of the term ``gradual typing'' in the literature, noting that many works on the subject no longer consider the convienent evolution from untyped to typed code, instead focusing simply on difficulties integrating dynamic and static type systems. The authors believe this is partially due to a failure of previous work to formalize the requirements of ``convienent evolution.'' They resolve this problem by introducing the gradual guarantee: informally, removing type annotations should not impact the behavior of the program, while adding \emph{correct} type annotations should also not impact the behavior.
+  \\\indent
+  To evaluate the gradual guarantee, the authors begin with a mechanized proof that the GTLC meets this gradual guarantee, demonstrating that this guarantee did indeed match the original blueprint for gradual typing and could potentially be implemented. They also evaluated several other gradually typed languages against the gradual guarantee: these results were generally less positive. They did not prove any practical language met the gradual guarantee, and indeed showed that many examples in the literature did not.
+  \\\indent
+  This work identified difficulty in proving the gradual guarantee for more complicated languages, and identifies investigating if it could be proven on such a language as a direction for future work. Furthermore, they note that even languages which seem to satisfy the guarantee had not explicitly accounted for the evolution of code, which was the main motivating point behind gradual typing. More thoroughly accounting for this evolution in language design, with or without proving the gradual guarantee, was also identified as necessary future work.
+  }
+}
+@inproceedings{takikawa2016SoundDead,
+author = {Takikawa, Asumu and Feltey, Daniel and Greenman, Ben and New, Max S. and Vitek, Jan and Felleisen, Matthias},
+title = {Is sound gradual typing dead?},
+year = {2016},
+isbn = {9781450335492},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+url = {https://doi.org/10.1145/2837614.2837630},
+doi = {10.1145/2837614.2837630},
+abstract = {Programmers have come to embrace dynamically-typed languages for prototyping and delivering large and complex systems. When it comes to maintaining and evolving these systems, the lack of explicit static typing becomes a bottleneck. In response, researchers have explored the idea of gradually-typed programming languages which allow the incremental addition of type annotations to software written in one of these untyped languages. Some of these new, hybrid languages insert run-time checks at the boundary between typed and untyped code to establish type soundness for the overall system. With sound gradual typing, programmers can rely on the language implementation to provide meaningful error messages when type invariants are violated. While most research on sound gradual typing remains theoretical, the few emerging implementations suffer from performance overheads due to these checks. None of the publications on this topic comes with a comprehensive performance evaluation. Worse, a few report disastrous numbers. In response, this paper proposes a method for evaluating the performance of gradually-typed programming languages. The method hinges on exploring the space of partial conversions from untyped to typed. For each benchmark, the performance of the different versions is reported in a synthetic metric that associates runtime overhead to conversion effort. The paper reports on the results of applying the method to Typed Racket, a mature implementation of sound gradual typing, using a suite of real-world programs of various sizes and complexities. Based on these results the paper concludes that, given the current state of implementation technologies, sound gradual typing faces significant challenges. Conversely, it raises the question of how implementations could reduce the overheads associated with soundness and how tools could be used to steer programmers clear from pathological cases.},
+booktitle = {Proceedings of the 43rd Annual ACM SIGPLAN-SIGACT Symposium on Principles of Programming Languages},
+pages = {456–468},
+numpages = {13},
+keywords = {Gradual typing, performance evaluation},
+location = {St. Petersburg, FL, USA},
+series = {POPL '16},
+annote = {
+This paper identifies a general lack of benchmarking in the gradual typing literature. Furthermore, when benchmarking is considered, it both tended to lack coverage across different levels of typing precision and already indicate poor performance. To address this, the authors create a benchmarking framework for Typed Racket that tests the performance of relatively small (but user-written) programs at all possible levels of typing precision.
+\\\indent
+This benchmarking found generally very poor performance metrics for Typed Racket, with almost all examples tested displaying at \emph{minimum} a 3x slowdown. Some examples, particularly the more complicated ones, exhibited slowdowns over 100x. Over 80\% of all time spent executing partially typed programs was in the runtime type checking needed to ensure soundness. These programs were also generally far away from the (slightly) more managable slowdowns: many instances exhibiting over 10x slowdowns required adding significantly more type annotations before the penalty for partial typing was under 10x.
+\\\indent
+The authors identified several limitations: firstly, this benchmark was only run on Typed Racket. They conjecture that it is possible (but unlikely) that a different language could avoid most of these slowdowns. Furthermore, they note that the implementation of Typed Racket is somewhat unoptimized, and conjecture that a better Just In Time compiler (JIT) that can apply more profiling based optimizations could potentially minimize the overhead by eliminating checks. Finally, they observe that Typed Racket (and other gradually typed languages) had seen some use in practice despite these performance concerns, and conjecture that programmer practice might somehow reduce the overhead to acceptable levels for these applications.}
+}
+@article{Vitousek2017BigTypes,
+author = {Vitousek, Michael M. and Swords, Cameron and Siek, Jeremy G.},
+title = {Big types in little runtime: open-world soundness and collaborative blame for gradual type systems},
+year = {2017},
+issue_date = {January 2017},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+volume = {52},
+number = {1},
+issn = {0362-1340},
+url = {https://doi.org/10.1145/3093333.3009849},
+doi = {10.1145/3093333.3009849},
+abstract = {Gradual typing combines static and dynamic typing in the same language, offering programmers the error detection and strong guarantees of static types and the rapid prototyping and flexible programming idioms of dynamic types. Many gradually typed languages are implemented by translation into an untyped target language (e.g., Typed Clojure, TypeScript, Gradualtalk, and Reticulated Python). For such languages, it is desirable to support arbitrary interaction between translated code and legacy code in the untyped language while maintaining the type soundness of the translated code. In this paper we formalize this goal in the form of the open-world soundness criterion. We discuss why it is challenging to achieve open-world soundness using the traditional proxy-based approach for higher-order casts. However, the transient design satisfies open-world soundness. Indeed, we present a formal semantics for the transient design and prove that our semantics satisfies open-world soundness. In this paper we also solve a challenging problem for the transient design: how to provide blame tracking without proxies. We define a semantics for blame and prove the Blame Theorem. We also prove that the Gradual Guarantee holds for this system, ensuring that programs can be evolved freely between static and dynamic typing. Finally, we demonstrate that the runtime overhead of the transient approach is low in the context of Reticulated Python, an implementation of gradual typing for Python.},
+journal = {SIGPLAN Not.},
+month = jan,
+pages = {762–774},
+numpages = {13},
+keywords = {gradual typing, interoperability, semantics, type systems},
+annote={This paper identifies the trend of implementing gradually typed languages on top of an underlying untyped language: for example, typescript on top of javascript. In this setting, it is often desirable to allow for existing libraries written in the untyped language to be interacted with by the typed language. However, ensuring soundness in this setting is challenging to do efficiently, and some examples do not bother (e.g. typescript assumes correctly typed values will be provided). Even if checks are inserted, the authors identify most proofs regarding soundness assume all code originates from the gradually typed language --- a key oversight when interaction with libraries is a design requirement.
+\\\indent
+The authors first address this hole in the theory by formalizing an open world soundness property that requires code be sound even when interacting with code not originating from gradually typed code. They then propose a new ``\textsf{transient}'' approach to implementing gradually typed languages that makes implementing a sound translation to the untyped language easier. They define formal static, dynamic, and blame semantics for this new approach.
+\\\indent
+To evaluate this work, the authors prove that a variant of the lambda calculus using this new approach meets their new, stronger soundness guarantee. They also prove it satisfies the gradual guarantee of Siek et al. that presented a stricter requirement for gradual languages. Finally, they prove that their new blame system for this \textsf{transient} approach satisfies correctnes guarantees similar to those in prior work.
+\\\indent
+In light of the benchmarking efforts of Takikawa et al. from the previous year, the authors also implemented this approach for Reticulated Python, a gradual typing system for Python. They conjecture (notably without proof) that this implementation of Reticulated Python is open world sound based on a test suite developed by one of the author's prior work. They run this implementation a selection of programs from the Python 3.4 benchmark suite, comparing the performance to unmodified Python 3.4. They found that with blame tracking disabled (but still using runtime checks for soundness), the overhead was at worst 5.4x slower, and in many cases several times better than that. The authors note that this is well within acceptable performance for many use cases of Python. Furthermore, while the performance with blame tracking is up to 18x slower, they note that this could still be acceptable when debugging, which is the primary use case of blame tracking.
+\\\indent
+There are several limitations to the work of this paper. Firstly, the reticulated python benchmarking was at one level of annotation precision, unlike previous work on Typed Racket. Furthermore, the benchmarks selected did not extensive use of external libraries so as to not obscure the performance characteristics with time spent in library code. However, this misses a large class of python programs. Finally, the new guarantees introduced in this paper were not proven for any practical language, and in particular not for the Reticulated Python implementation used for benchmarking.}
+}
+@article{MuehlboeckTate2017Nominally,
+author = {Muehlboeck, Fabian and Tate, Ross},
+title = {Sound gradual typing is nominally alive and well},
+year = {2017},
+issue_date = {October 2017},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+volume = {1},
+number = {OOPSLA},
+url = {https://doi.org/10.1145/3133880},
+doi = {10.1145/3133880},
+abstract = {Recent research has identified significant performance hurdles that sound gradual typing needs to overcome. These performance hurdles stem from the fact that the run-time checks gradual type systems insert into code can cause significant overhead. We propose that designing a type system for a gradually typed language hand in hand with its implementation from scratch is a possible way around these and several other hurdles on the way to efficient sound gradual typing. Such a design process also highlights the type-system restrictions required for efficient composition with gradual typing. We formalize the core of a nominal object-oriented language that fulfills a variety of desirable properties for gradually typed languages, and present evidence that an implementation of this language suffers minimal overhead even in adversarial benchmarks identified in earlier work.},
+journal = {Proc. ACM Program. Lang.},
+month = oct,
+articleno = {56},
+numpages = {30},
+keywords = {Transparency, Nominal, Immediate Accountability, Gradual Typing},
+annote={This paper addresses the performance concerns of gradually typed languages identified by Takikawa et al. the year prior. They use several ingredients that differ from most existing implementations to address this: one is a nominal type system. They propose that a nominal type system allows for for faster precise run time type information (RTTI) to minimize the cost of runtime checks. They also propose two other properties that a gradual language could satisfy to have better performance: transparency, requiring that casts are invisible after evaluation; and immediate accountability, requiring that typing problems must be immediately identified. Finally, they  propose that implementing a language from the ground up to be gradually typed offers potential performance speedups compared to languages that add the overhead of dynamic typing onto an untyped language at runtime.
+\\\indent
+To evaluate these claims, the authors define a simple gradually typed nominal object oriented language called Nom. They show it satisfies both their new properties as well as the gradual guarantee of Siek et al. They implement a prototype compiler for Nom and evaluate its performance compared to other benchmarks of gradual languages, finding that the performance was much more consistent across varying typing precision compared to the previous typed Racket benchmarking efforts. Finally, they ported the same benchmarks to C\# to compare Nom to another nominally typed language supporting gradual types: C\# exhibited a much more pronounced slowdown using gradually typed code than Nom did.
+\\\indent
+The authors acknowledge that their benchmarking covered a relatively small set of programs, likely as a result of being unable to directly use existing benchmarks from another language. They also highlight that the type system implemented in Nom is quite limited compared to the structural systems used by most other gradually typed language, underlining this as a direction for future work. Furthermore, they note a need for further theoretical work to reconcile gradual typing and to generics for nominal type systems. Finally, they observe that implementing first class functions is likely a future performance headache.}
+}
+@article{Bauman2017MostlyDead,
+author = {Bauman, Spenser and Bolz-Tereick, Carl Friedrich and Siek, Jeremy and Tobin-Hochstadt, Sam},
+title = {Sound gradual typing: only mostly dead},
+year = {2017},
+issue_date = {October 2017},
+publisher = {Association for Computing Machinery},
+address = {New York, NY, USA},
+volume = {1},
+number = {OOPSLA},
+url = {https://doi.org/10.1145/3133878},
+doi = {10.1145/3133878},
+abstract = {While gradual typing has proven itself attractive to programmers, many systems have avoided sound gradual typing due to the run time overhead of enforcement. In the context of sound gradual typing, both anecdotal and systematic evidence has suggested that run time costs are quite high, and often unacceptable, casting doubt on the viability of soundness as an approach. We show that these overheads are not fundamental, and that with appropriate improvements, just-in-time compilers can greatly reduce the overhead of sound gradual typing. Our study takes benchmarks published in a recent paper on gradual typing performance in Typed Racket (Takikawa et al., POPL 2016) and evaluates them using a experimental tracing JIT compiler for Racket, called Pycket. On typical benchmarks, Pycket is able to eliminate more than 90\% of the gradual typing overhead. While our current results are not the final word in optimizing gradual typing, we show that the situation is not dire, and where more work is needed. Pycket's performance comes from several sources, which we detail and measure individually. First, we apply a sophisticated tracing JIT compiler and optimizer, automatically generated in Pycket using the RPython framework originally created for PyPy. Second, we focus our optimization efforts on the challenges posed by run time checks, implemented in Racket by chaperones and impersonators. We introduce representation improvements, including a novel use of hidden classes to optimize these data structures.},
+journal = {Proc. ACM Program. Lang.},
+month = oct,
+articleno = {54},
+numpages = {24},
+keywords = {Gradual Typing, Just-in-Time compilation, Performance Evaluation},
+annote = {This paper pursues the potential for performance improvments by improving the JIT in use identified by Takikawa et al. as part of their Typed Racket benchmarks. They build on Pycket, a JIT developed using work originally for the PyPy implementation of Python. Furthermore, they adapt existing methodology from prototype-based class systems to create more efficient implementations of runtime casts and type checking.
+\\\indent
+To evaluate their work, the authors first run the benchmark suite of Takikawa et al. on the Typed Racket implementation and using Pycket. They found that Pycket significantly reduced the overhead of gradual typing, in some cases from 100x to below 2x. 45\% of configurations resulted in only a 10\% slowdown, and 60\% of the test instances are \emph{close} (in the sense of requiring few increases in the amount of type information) to an instance that only has a 10\% slowdown. When with the improvement in baseline execution speed, these improvements make the overhead of gradual typing much more acceptable. Furthermore, the authors identified key areas where Pycket created performance speedups: better hot loop detection, even in the presence of objects that obscure the actual behavior of the program due to runtime type checking. This allows for better inlining decisions on specific runtime checks, as well as additional checks being optimized away entirely due to being unnecessary.
+\\\indent
+While Pycket enabled signficant performance gains, the authors stress that this is not the last word in the area. The overhead is still too high for some applications, and Typed Racket is a language that by design limits the variance in typing to either have fully typed or fully untyped modules. This design limits interaction between untyped and typed code more than other languages. Furthermore, they emphasize that Pycket's performance gains can largely be traced to the fact that it is a tracing JIT: extending these results to less complex JITs is still an open problem.}
+}
+@inproceedings{wadler2009well,
+  title={Well-typed programs can’t be blamed},
+  author={Wadler, Philip and Findler, Robert Bruce},
+  booktitle={European Symposium on Programming},
+  pages={1--16},
+  year={2009},
+  organization={Springer}
+}
+@inproceedings{thatte1989quasi,
+  title={Quasi-static typing},
+  author={Thatte, Satish},
+  booktitle={Proceedings of the 17th ACM SIGPLAN-SIGACT symposium on Principles of programming languages},
+  pages={367--381},
+  year={1989}
+}
+@inproceedings{vitousek2014Reticulated,
+  title={Design and evaluation of gradual typing for Python},
+  author={Vitousek, Michael M and Kent, Andrew M and Siek, Jeremy G and Baker, Jim},
+  booktitle={Proceedings of the 10th ACM Symposium on Dynamic languages},
+  pages={45--56},
+  year={2014}
+}
+@inproceedings{takikawa2015Racket,
+  title={Towards practical gradual typing},
+  author={Takikawa, Asumu and Feltey, Daniel and Dean, Earl and Flatt, Matthew and Findler, Robert Bruce and Tobin-Hochstadt, Sam and Felleisen, Matthias},
+  booktitle={29th European Conference on Object-Oriented Programming (ECOOP 2015)},
+  pages={4--27},
+  year={2015},
+  organization={Schloss Dagstuhl--Leibniz-Zentrum f{\"u}r Informatik}
+}
+
+@misc{Pest,
+    title={pest. The Elegant Parser},
+    author={Pest Developers},
+    howpublished={\url{https://rust-lang.org/}}
+}
+@misc{Rust,
+    title={The Rust Programming Language},
+    author={The Rust Team},
+    howpublished={\url{https://rust-lang.org/}}
+}

@@ -1,0 +1,93 @@
+%% This is annot.tex.
+%% 
+%% You'll need to change the title and author fields to reflect your
+%% information.
+%%
+%% Author: Titus Barik (titus@barik.net)
+%% Homepage: http://www.barik.net/sw/ieee/
+%% Reference: http://www.ctan.org/tex-archive/info/simplified-latex/
+
+\documentclass [11pt]{article}
+
+\input{preamble}
+
+\title{Gradual Typing\\\medskip An Annotated Bibliography}
+\author{Kei Rockwell (krockw@umich.edu)\\ University of Michigan CSE 590}
+\date{\today}
+
+\begin{document}
+\maketitle
+\section{Introduction}
+Both static and dynamic type systems have become a staple of programming language designs, each with their own benefits. Dynamic type systems in particular are convenient to work with early in a project's lifecycle, allowing for rapid prototyping and easier adaptation to changing requirements. On the flip side, static typing can provide compile time soundness guarantees aiding maintainability, while also offering the potential for type-specific optimizations to be applied. This suggests that it is generally desirable to begin work on a project with a dynamically typed language and transition to static typing once the structure settles. However, rewriting a project simply to take advantage of a static type system would, in general, be an impractical proposition. This motivates type theories and type systems that allow for \emph{convienent} evolution between typed and untyped code. 
+
+For the implementation project, we focus on implementing a gradually typed form of ALFA, the toy functional language used over the first half of this course. We add gradual types to a variant of typed ALFA that includes sum, product, and arrow types. The challenges are twofold: first, implementing simply typed ALFA (analogous to the GTLC of \cite{siek2006gradual}) is already an interesting implementation challenge. Furthermore, the addition of other non-base types requires adapting the dynamic semantics for arrow types given in \cite{siek2015refined}.
+
+Our solution to this implementation challenge revolves around a Gradual ALFA interpreter written in Rust \cite{Rust}. We adapt the static and dynamic semantics of the GTLC outlined by Siek et al. to ALFA, using the same strategy of translation to a variant with explicit casts. For evaluation, we rely on a comprehensive test suite for correctness and implement examples from prior work on the GTLC in Gradual ALFA.
+
+\section{Related Work}
+Siek and Taha introduced the idea of gradual typing \cite{siek2006gradual}. At its core, this concept seeks to allow interpolation between a dynamic and statically typed language while providing as many static guarantees as possible. Siek and Taha cite prior work on Quasi Static types by Thatte \cite{thatte1989quasi} as the starting point for their theory. Furthermore, they introduce a gradually typed lambda calculus (GTLC) as a way to evolve from the dynamically typed lambda calculus to the simply typed lambda calculus (STLC). To formalize requirements for convenient evolution, Siek et al. introduce the Gradual Guarantee and prove that the GTLC satisfy it \cite{siek2015refined}. Finally, there has been a great deal of work on more practical implementations of gradually typed languages, such as Reticulated Python \cite{vitousek2014Reticulated}, Typed Racket \cite{takikawa2015Racket}, and others. Furthermore, the efficient implementation of these languages has also been scrutinized and improved \cite{takikawa2016SoundDead,Vitousek2017BigTypes,MuehlboeckTate2017Nominally,Bauman2017MostlyDead}.
+
+In implementing a gradually typed variant of ALFA, this project builds heavily on the central work of Siek and Taha and later exposition by Siek et al. on the Gradually Typed Lambda Calculus (GTLC). The static semantics of the GTLC are closely related to the Simply Typed Lambda Calculus. Instead of type equality, they relax to a consistency relation to handle the unknown dynamic type. The dynamic semantics are defined via translation to a different variant of the GTLC that makes implicit casts explicit \cite{siek2006gradual}. Later presentation merges existing work on contracts to include blame tracking for these inserted casts \cite{siek2015refined}.
+
+\section{Solution Approach}
+We implement a ALFA interpreter in Rust comprising of a parsing module, type checking module, and evaluation module. We detail each step of below. The implementation is available at \url{https://github.com/kevinrockwell/GradualAlfa}. An example program can be seen in Figure \ref{fig:prog}.
+
+\begin{figure}
+\centering
+\begin{verbatim}
+let fix be fun f ->(fun x ->
+    f(fun v -> (x(x))(v))) (fun x -> f(fun v -> (x(x))(v))) in
+        let (fact: ? -> Num -> Num) be fun f -> fun (n: Num) ->
+            if n =? 0 then 1 else n * f(n - 1) in
+
+            (fix(fact))(4)
+\end{verbatim}
+\caption{An example Gradual ALFA program computing factorial. The syntax is identical to ALFAp from class, with the addition of a new type ? to signify the dynamic type. The first two lines define the fixpoint, while the final two are a standard factorial implementation.}
+\label{fig:prog}
+\end{figure}
+
+\subsection{Parsing}
+The parser was implemented using the pest parser \cite{Pest}, which is based on an underlying framework of parsing expression grammars (PEGs). While PEGs allow for operator precedence to be encoded within the grammar, pest allows precedence and associativity to be explicitly set in code; for clarity, we chose to go this route. We then traverse the parser output to construct an Abstract Syntax Tree (AST). An example of 
+
+\subsection{Type Checking}
+We traverse the AST to construct a typed version. In the code, this is represented by the transformation of the tree from type \verb|Expr| to type \verb|TypedExpr|. We note that this implementation is not particularly efficient: in particular, it is likely that this type checking could have been done while constructing the AST, as there is little type inference being performed. This limited inference was largely for consistency with the existing work on the GTLC: more sophisticated type inference algorithms would likely reduce the amount of casts inserted later on. Where standard type checking would require a type annotation, we instead assume the unknown dynamic type.
+
+\subsection{Evaluation}
+To evaluate Gradual ALFA programs, we follow the general structure used in class for the ALFAp interpreter. We recursively descend the (typed) AST, greedily evaluating values, and substituting these values for variables where appropriate. The main sticking point of this process for Gradual ALFA is inserting casts: throughout, we must ensure soundness by casting unknown dynamic types to the known type requirements.
+
+
+While we do not formalize the semantics of Gradual ALFA, we follow a similar approach for both static and dynamic semantics as Siek et al. \cite{siek2015refined}. In particular, we implement their cast reduction rules  as part of the cast insertion process. In addition, we must extend these cast rules to allow for sum and product types. Prior work identifies function application as the point of interest for cast insertions: the dynamic semantics for the GTLC involve inserting a cast to a (potentially unknown) arrow type, casting the argument to the proper type, and finally casting the resulting value to the correct type. We implement a similar system for the elimination forms of sum and product types, in addition to function applications.
+
+% TODO: include syntax screenshot
+
+\section{Evaluation}
+To gain some confidence on the correctness of the implementation, we include an extensive test suite covering each section of the implementation. While we doubt that this interpreter is bug free, the test suite shows that it is behaving as expected on the majority of cases.
+
+The bulk of our evaluation focuses on examples given in prior work. For instance, a motivating example for the original development of gradual typing was the inability of existing methods to catch all static type errors. We tested the given example (and many others, in the typechecking test suite) and found that they were entirely rejected during the typechecking phase. However, the well typed examples (even those that exhibit runtime errors) are accepted.
+
+We also wrote several other simple Gradual ALFA programs. Gradual typing's acceptance of dynamically typed sections allows for the creation of a fixpoint --- because Gradual ALFA greedily evaluates values, we use the Z-combinator. This allows us to write a factorial function and vary the levels of typing precision without altering behavior. Similarly, we write the GCD function (at different typing levels) used as an example of the Gradual Guarantee by Siek et al. \cite{siek2015refined}. While proving these properties is outside the scope of this project, we postulate based on these tests that Gradual ALFA contains Simply Typed ALFA and furthermore satisfies the gradual guarantee.
+
+\section{Future Work}
+We implement an interpreter for Gradual ALFA, a gradually typed variant of ALFA, including sum, product, and arrow types. On the implementation side,  future work could add blame tracking for casts and otherwise improve error messages to make using this language more programmer-friendly. There is also ample room for work on formalizing Gradual ALFA's properties. A starting point would be a rigorous statement of the static and dynamic semantics. Other work in this direction would be to prove that it is a superset of both Simply Typed ALFA and untyped ALFA, and proving or disproving that it satisfies the gradual guarantee.
+
+
+% TODO dig up citations
+% From its introduction, there were numerous applications of the ideas behind to more mainstream programming languages, including Typed Racket, Reticulated (a gradual system for python), C\#'s dynamic features, several iterations of safe typescript, and many others. However, the ``convenient evolution'' ideal was believed to be lost, as several practical implementations threw unexpected errors or were overly permissive when adding or removing type annotations. In response, Siek et al. introduced the gradual guarantee to formalize requirements for the gradual addition or removal of types \cite{siek2015refined}. This guarantee builds on the previous work of \cite{siek2006gradual} and blame tracking work of \cite{wadler2009well} and others by demanding that changing the precision of type annotations within a program does not break these guarantees in a surprising manner. Many real-world implementations failed to satisfy this guarantee --- some deliberately abandoned soundness, most prominently standard typescript --- while others did so more organically. This work also highlighted likely performance challenges in projects implementing the gradual guarantee that wold become a theme in the literature moving forward.
+
+% These performance challenges were further underlined a year later during profiling efforts on typed racket \cite{takikawa2016SoundDead}. When benchmarking all precision levels of typing information, it was found that typed racket suffered from significant performance challenges due to runtime checks needed to guarantee soundness.
+
+% In response, there were several efforts to improve runtime performance of gradually typed languages. These included leveraging better optimization techniques at runtime \cite{Bauman2017MostlyDead}, improving the representation used for interacting between typed and untyped regions \cite{Vitousek2017BigTypes}, and reworking the type system (and overall language) to support faster run time type information \cite{MuehlboeckTate2017Nominally}. Each of these works were able to significantly reduce the overhead of the gradual type system, albeit with some limitations both in performance and based on the underlying language design.
+
+% There are several avenues for future work on gradual typing. The first continues this performance angle: even solutions that vastly improve performance still have potentially unacceptable overhead in some cases. Best case slowdowns for partially typed code in these benchmarks still hovers in the 10-15\% range, which is not a cost that can be accepted in many applications. As a result, many languages designed to be gradually typed intentionally forgo runtime checks to guarantee soundness, missing out on a very useful portion of guarantees that should be provided by a type system.
+
+% Another avenue for future work on gradual typing focuses on broadening the understanding of the type systems that can be made gradual. The GTLC that provides the preeminent example of a gradually typed language builds on the type system of the \emph{simply} typed lambda calculus, which is a very limited type system. Ongoing work focuses on extending the ideas behind gradual types in ways that enrich this type system while satisfying the gradual guarantee: for example, there have been several recent papers with the aim of creating a gradual dependent type system.
+
+% \section{Project Proposal}
+% For the project, I plan to implement a gradual type system for ALFA. This is in the spirit of the GTLC introduced in \cite{siek2006gradual}. To evaluate this proposal, a reasonable first step seems to be testing the implementation against a static ALFA implementation to gain confidence that it catches static errors in fully typed programs. Extending this test suite with gradually typed ALFA programs for sanity checks would also be involved. Further evaluation seems challenging to explore in the timeframe, but I am of course open to feedback on this plan.
+
+% \subsection{Note about annotations}
+% Papers beyond the 6 paper requirement are cited, mostly due to relevance in the narrative. Full annotations for these papers are not provided. The papers with annotations are \cite{Bauman2017MostlyDead}, \cite{MuehlboeckTate2017Nominally}, \cite{siek2006gradual}, \cite{siek2015refined}, \cite{takikawa2016SoundDead}, and \cite{Vitousek2017BigTypes}.
+
+\bibliographystyle{alpha}
+\bibliography{refs}
+\end{document}
